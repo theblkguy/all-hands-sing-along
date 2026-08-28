@@ -33,3 +33,8 @@ config :phoenix,
 
 config :all_hands_sing_along, AllHandsSingAlong.Catalog.Lyrics,
   req_options: [plug: {Req.Test, AllHandsSingAlong.Catalog.Lyrics}]
+
+config :all_hands_sing_along, AllHandsSingAlong.Catalog.StemSeparator,
+  adapter: AllHandsSingAlong.Catalog.StubStemAdapter,
+  enabled: true,
+  sync: true

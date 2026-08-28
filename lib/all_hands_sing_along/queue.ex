@@ -175,6 +175,18 @@ defmodule AllHandsSingAlong.Queue do
     end
   end
 
+  @spec sync_entries_for_song(AllHandsSingAlong.Catalog.Song.t()) :: :ok
+  def sync_entries_for_song(%AllHandsSingAlong.Catalog.Song{id: song_id}) do
+    Entry
+    |> where([e], e.song_id == ^song_id)
+    |> Repo.all()
+    |> Enum.each(fn entry ->
+      _ = sync_preparation(entry)
+    end)
+
+    :ok
+  end
+
   defp infer_status(attrs) do
     song_id = Map.get(attrs, :song_id) || Map.get(attrs, "song_id")
     song = song_id && Repo.get(Catalog.Song, song_id)
@@ -237,5 +249,13 @@ defmodule AllHandsSingAlong.Queue do
 
   defp broadcast(code, message) do
     Phoenix.PubSub.broadcast(AllHandsSingAlong.PubSub, topic(code), message)
+  end
+
+  @spec broadcast_queue(integer()) :: :ok
+  def broadcast_queue(room_id) when is_integer(room_id) do
+    case Repo.get(Room, room_id) do
+      nil -> :ok
+      room -> broadcast(room.code, {:queue_updated, room.id})
+    end
   end
 end

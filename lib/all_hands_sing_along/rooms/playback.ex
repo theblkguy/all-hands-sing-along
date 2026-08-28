@@ -20,7 +20,9 @@ defmodule AllHandsSingAlong.Rooms.Playback do
           title: String.t() | nil,
           artist: String.t() | nil,
           singer_name: String.t() | nil,
-          offset_ms: integer()
+          offset_ms: integer(),
+          song_id: integer() | nil,
+          mode: :idle | :tuning | :singing
         }
 
   defstruct room_id: nil,
@@ -33,7 +35,9 @@ defmodule AllHandsSingAlong.Rooms.Playback do
             title: nil,
             artist: nil,
             singer_name: nil,
-            offset_ms: 0
+            offset_ms: 0,
+            song_id: nil,
+            mode: :idle
 
   @spec start_link(integer()) :: GenServer.on_start()
   def start_link(room_id) do
@@ -110,12 +114,14 @@ defmodule AllHandsSingAlong.Rooms.Playback do
 
   @impl true
   def handle_call({:play, track}, _from, state) do
+    offset = track |> Map.get(:offset_ms, 0) |> clamp_offset()
+
     state =
       state
       |> merge_track(track)
       |> Map.put(:playing?, true)
       |> Map.put(:position_ms, Map.get(track, :position_ms, 0))
-      |> Map.put(:offset_ms, 0)
+      |> Map.put(:offset_ms, offset)
       |> Map.put(:origin_mono_ms, monotonic_ms())
 
     snapshot = snapshot(state)
@@ -148,8 +154,7 @@ defmodule AllHandsSingAlong.Rooms.Playback do
   end
 
   def handle_call({:nudge_offset, delta_ms}, _from, state) do
-    offset = state.offset_ms + delta_ms
-    offset = offset |> max(-15_000) |> min(15_000)
+    offset = clamp_offset(state.offset_ms + delta_ms)
     state = %{state | offset_ms: offset}
     snapshot = snapshot(state)
     broadcast(state, {:playback, snapshot})
@@ -168,7 +173,9 @@ defmodule AllHandsSingAlong.Rooms.Playback do
         lyrics: Map.get(track, :lyrics, state.lyrics) || [],
         title: Map.get(track, :title, state.title),
         artist: Map.get(track, :artist, state.artist),
-        singer_name: Map.get(track, :singer_name, state.singer_name)
+        singer_name: Map.get(track, :singer_name, state.singer_name),
+        song_id: Map.get(track, :song_id, state.song_id),
+        mode: Map.get(track, :mode, :singing)
     }
   end
 
@@ -190,9 +197,14 @@ defmodule AllHandsSingAlong.Rooms.Playback do
       title: state.title,
       artist: state.artist,
       singer_name: state.singer_name,
-      offset_ms: state.offset_ms
+      offset_ms: state.offset_ms,
+      song_id: state.song_id,
+      mode: state.mode
     }
   end
+
+  defp clamp_offset(ms) when is_integer(ms), do: ms |> max(-15_000) |> min(15_000)
+  defp clamp_offset(_), do: 0
 
   defp broadcast(%{room_code: code}, message) when is_binary(code) do
     Phoenix.PubSub.broadcast(AllHandsSingAlong.PubSub, Queue.topic(code), message)

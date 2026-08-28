@@ -22,6 +22,19 @@ defmodule AllHandsSingAlong.Catalog.Uploads do
     MapSet.member?(@audio_exts, String.downcase(ext))
   end
 
+  @spec local_path(String.t() | nil) :: String.t() | nil
+  def local_path("/uploads/" <> name) when is_binary(name) do
+    if safe_name?(name), do: Path.join(dir(), name)
+  end
+
+  def local_path("/audio/" <> name) when is_binary(name) do
+    if safe_name?(name) do
+      Path.join([:code.priv_dir(:all_hands_sing_along), "static", "audio", name])
+    end
+  end
+
+  def local_path(_), do: nil
+
   @spec store_audio!(String.t(), String.t()) :: {:ok, String.t()} | {:error, :invalid_ext}
   def store_audio!(source_path, client_name)
       when is_binary(source_path) and is_binary(client_name) do
@@ -41,5 +54,10 @@ defmodule AllHandsSingAlong.Catalog.Uploads do
   @spec read_text!(String.t()) :: String.t()
   def read_text!(path) when is_binary(path) do
     File.read!(path)
+  end
+
+  defp safe_name?(name) do
+    name != "" and not String.contains?(name, "/") and not String.contains?(name, "\\") and
+      not String.contains?(name, "..")
   end
 end

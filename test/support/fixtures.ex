@@ -16,6 +16,7 @@ defmodule AllHandsSingAlong.Fixtures do
       title: "Test Song",
       artist: "Test Artist",
       original_path: Catalog.fixture_path(),
+      instrumental_path: Catalog.fixture_path(),
       lrc_text: Catalog.fixture_lrc()
     }
 
