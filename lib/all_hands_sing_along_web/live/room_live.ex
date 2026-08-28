@@ -372,7 +372,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                 id="lyrics-later"
                 type="button"
                 phx-click="nudge_lyrics"
-                phx-value-delta="-500"
+                phx-value-delta="-100"
               >
                 Lyrics later
               </.button>
@@ -380,7 +380,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                 id="lyrics-earlier"
                 type="button"
                 phx-click="nudge_lyrics"
-                phx-value-delta="500"
+                phx-value-delta="100"
               >
                 Lyrics earlier
               </.button>

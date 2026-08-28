@@ -44,6 +44,21 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     assert_push_event(view, "player-sync", %{playing: false})
   end
 
+  test "host nudges lyrics by 0.1 seconds", %{conn: conn} do
+    room = Fixtures.room_fixture()
+    {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
+
+    assert has_element?(view, "#lyrics-later[phx-value-delta='-100']")
+    assert has_element?(view, "#lyrics-earlier[phx-value-delta='100']")
+
+    view |> element("button", "Play") |> render_click()
+    view |> element("#lyrics-earlier") |> render_click()
+    assert has_element?(view, "#lyrics-offset", "Lyrics 0.1s earlier")
+
+    view |> element("#lyrics-later") |> render_click()
+    assert has_element?(view, "#lyrics-offset", "Lyrics on time")
+  end
+
   test "guest can search and pick lyrics after a failed lookup", %{conn: conn} do
     room = Fixtures.room_fixture()
 
