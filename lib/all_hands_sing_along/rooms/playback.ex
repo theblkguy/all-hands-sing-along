@@ -22,7 +22,7 @@ defmodule AllHandsSingAlong.Rooms.Playback do
           singer_name: String.t() | nil,
           offset_ms: integer(),
           song_id: integer() | nil,
-          mode: :idle | :tuning | :singing
+          mode: :idle | :singing
         }
 
   defstruct room_id: nil,

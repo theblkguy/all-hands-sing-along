@@ -34,6 +34,8 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         |> assign(:song_title, "")
         |> assign(:song_artist, "")
         |> assign(:lyric_search, nil)
+        |> assign(:lyric_preview, nil)
+        |> assign(:changing_lyrics_id, nil)
         |> assign(:attaching_audio_id, nil)
         |> allow_upload(:audio, accept: :any, max_entries: 1, max_file_size: 32_000_000)
         |> allow_upload(:lrc, accept: :any, max_entries: 1, max_file_size: 200_000)
@@ -78,6 +80,8 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   @impl true
   def handle_event("play", _params, socket) do
     if socket.assigns.host? do
+      socket = close_lyric_preview(socket)
+
       case Rooms.play(socket.assigns.room, host_token(socket)) do
         {:ok, playback} -> {:noreply, sync_playback(socket, playback)}
         {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
@@ -100,6 +104,8 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   def handle_event("skip", _params, socket) do
     if socket.assigns.host? do
+      socket = close_lyric_preview(socket)
+
       case Rooms.skip(socket.assigns.room, host_token(socket)) do
         {:ok, playback} -> {:noreply, sync_playback(socket, playback)}
         {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
@@ -112,9 +118,59 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   def handle_event("tune_lyrics", %{"id" => id}, socket) do
     if socket.assigns.host? do
       with {:ok, entry} <- fetch_room_entry(socket, id),
-           {:ok, playback} <- Rooms.tune_lyrics(socket.assigns.room, host_token(socket), entry) do
-        {:noreply, sync_playback(socket, playback)}
+           {:ok, preview} <-
+             Rooms.lyric_preview(socket.assigns.room, host_token(socket), entry) do
+        {:noreply, open_lyric_preview(socket, preview)}
       else
+        {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Host only")}
+    end
+  end
+
+  def handle_event("close_lyric_preview", _params, socket) do
+    if socket.assigns.host? do
+      {:noreply, close_lyric_preview(socket)}
+    else
+      {:noreply, put_flash(socket, :error, "Host only")}
+    end
+  end
+
+  def handle_event("nudge_preview", %{"delta" => delta}, socket) do
+    case Integer.parse(to_string(delta)) do
+      {ms, ""} ->
+        if socket.assigns.host? do
+          {:noreply, nudge_lyric_preview(socket, ms)}
+        else
+          {:noreply, put_flash(socket, :error, "Host only")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Something went wrong")}
+    end
+  end
+
+  def handle_event("toggle_change_lyrics", %{"id" => id}, socket) do
+    if socket.assigns.host? do
+      with {:ok, entry} <- fetch_room_entry(socket, id),
+           true <- can_replace_lyrics?(entry) do
+        current = socket.assigns.changing_lyrics_id
+
+        socket =
+          if current == entry.id do
+            socket
+            |> assign(:changing_lyrics_id, nil)
+            |> clear_lyric_search(entry.id)
+          else
+            socket
+            |> assign(:changing_lyrics_id, entry.id)
+            |> clear_lyric_search(current)
+          end
+
+        {:noreply, restream_queue(socket)}
+      else
+        false -> {:noreply, put_flash(socket, :error, "Host only")}
         {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
       end
     else
@@ -149,9 +205,8 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
       true ->
         with {:ok, entry} <- fetch_room_entry(socket, id),
-             {:ok, song} <- ensure_song(socket, entry, title, artist),
-             {:ok, _entry} <- Queue.attach_song(entry, song),
-             {:ok, hits} <- Catalog.Lyrics.search(artist, title) do
+             :ok <- authorize_lyric_search(socket, entry),
+             {:ok, hits} <- search_lyric_hits(socket, entry, title, artist) do
           search =
             if hits == [] do
               %{
@@ -163,7 +218,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               %{entry_id: entry.id, results: hits, error: nil}
             end
 
-          {:noreply, assign(socket, :lyric_search, search)}
+          {:noreply, socket |> assign(:lyric_search, search) |> restream_queue()}
         else
           {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
         end
@@ -172,13 +227,14 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   def handle_event("pick_lyrics", %{"id" => id, "lrclib-id" => lrclib_id}, socket) do
     with {:ok, entry} <- fetch_room_entry(socket, id),
+         :ok <- authorize_lyric_edit(socket, entry),
          %{} = song <- entry.song,
          {:ok, lrc} <- Catalog.Lyrics.fetch_by_id(lrclib_id),
          {:ok, song} <- Catalog.apply_lrc(song, lrc),
-         {:ok, _entry} <- Queue.attach_song(entry, song) do
+         {:ok, entry} <- Queue.attach_song(entry, song) do
       {:noreply,
        socket
-       |> assign(:lyric_search, nil)
+       |> finish_lyric_edit(entry)
        |> put_flash(:info, "Lyrics attached")}
     else
       nil -> {:noreply, put_flash(socket, :error, "Add the song to the queue first")}
@@ -188,13 +244,13 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   def handle_event("paste_lyrics", %{"entry_id" => id, "lrc_text" => lrc_text}, socket) do
     with {:ok, entry} <- fetch_room_entry(socket, id),
-         {:ok, song} <-
-           ensure_song(socket, entry, entry.song_title, (entry.song && entry.song.artist) || ""),
+         :ok <- authorize_lyric_edit(socket, entry),
+         {:ok, song} <- song_for_lyric_edit(socket, entry),
          {:ok, song} <- Catalog.apply_lrc(song, lrc_text),
-         {:ok, _entry} <- Queue.attach_song(entry, song) do
+         {:ok, entry} <- Queue.attach_song(entry, song) do
       {:noreply,
        socket
-       |> assign(:lyric_search, nil)
+       |> finish_lyric_edit(entry)
        |> put_flash(:info, "Lyrics attached")}
     else
       {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
@@ -422,12 +478,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                 Start singer
               </.button>
               <.button type="button" phx-click="pause">Pause</.button>
-              <.button
-                :if={playback_mode(@playback) != :tuning}
-                id="skip-song"
-                type="button"
-                phx-click="skip"
-              >
+              <.button id="skip-song" type="button" phx-click="skip">
                 Skip
               </.button>
             </div>
@@ -487,6 +538,64 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               </.button>
               <p id="lyrics-offset" class="text-sm text-base-content/70">
                 {offset_label(@playback && @playback.offset_ms)}
+              </p>
+            </div>
+            <p
+              :if={@host? and @lyric_preview}
+              id="singer-muted-note"
+              class="text-sm text-base-content/70"
+            >
+              Singer track is muted in your headphones while you tune the next song.
+            </p>
+          </div>
+        </div>
+
+        <div :if={@host? and @lyric_preview} id="lyric-preview-card" class="card bg-base-200">
+          <div class="card-body space-y-3">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-sm uppercase tracking-wide text-base-content/60">
+                  Tune next song
+                </p>
+                <p id="lyric-preview-title" class="text-xl font-medium">
+                  {Catalog.format_title(@lyric_preview.title, @lyric_preview.artist)}
+                </p>
+                <p class="text-base-content/70">{@lyric_preview.singer_name}</p>
+              </div>
+              <.button id="close-lyric-preview" type="button" phx-click="close_lyric_preview">
+                Close preview
+              </.button>
+            </div>
+            <p class="text-sm text-base-content/70">
+              Original mix (vocals on). Guests still hear the singer.
+            </p>
+            <div
+              id="lyric-preview"
+              phx-hook="LyricPreview"
+              phx-update="ignore"
+            >
+              <p id="lyric-preview-line" class="text-2xl font-semibold min-h-10"></p>
+              <audio id="lyric-preview-audio" controls class="w-full" preload="auto"></audio>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <.button
+                id="preview-lyrics-later"
+                type="button"
+                phx-click="nudge_preview"
+                phx-value-delta="-100"
+              >
+                Lyrics later
+              </.button>
+              <.button
+                id="preview-lyrics-earlier"
+                type="button"
+                phx-click="nudge_preview"
+                phx-value-delta="100"
+              >
+                Lyrics earlier
+              </.button>
+              <p id="lyric-preview-offset" class="text-sm text-base-content/70">
+                {offset_label(@lyric_preview.offset_ms)}
               </p>
             </div>
           </div>
@@ -608,73 +717,28 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                     <span class="badge badge-soft">{status_label(entry.status)}</span>
                   </div>
                   <div
-                    :if={
-                      entry.status in [:requested, :preparing] and not Catalog.has_lyrics?(entry.song)
-                    }
+                    :if={can_attach_missing_lyrics?(entry)}
                     class="space-y-3 border-t border-base-300 pt-3"
                   >
-                    <.form
-                      for={%{}}
-                      id={"lyrics-search-#{entry.id}"}
-                      phx-submit="search_lyrics"
-                      class="space-y-2"
+                    <.lyrics_editor entry={entry} lyric_search={@lyric_search} />
+                  </div>
+                  <div
+                    :if={@host? and can_replace_lyrics?(entry)}
+                    class="space-y-3 border-t border-base-300 pt-3"
+                  >
+                    <.button
+                      id={"change-lyrics-#{entry.id}"}
+                      type="button"
+                      phx-click="toggle_change_lyrics"
+                      phx-value-id={entry.id}
                     >
-                      <input type="hidden" name="entry_id" value={entry.id} />
-                      <.input
-                        id={"lyrics-title-#{entry.id}"}
-                        name="title"
-                        label="Title"
-                        value={entry.song_title}
-                        required
-                      />
-                      <.input
-                        id={"lyrics-artist-#{entry.id}"}
-                        name="artist"
-                        label="Artist"
-                        value={(entry.song && entry.song.artist) || ""}
-                        required
-                      />
-                      <.button type="submit">Search lyrics</.button>
-                    </.form>
-                    <div
-                      :if={@lyric_search && @lyric_search.entry_id == entry.id}
-                      id={"lyrics-results-#{entry.id}"}
-                      class="space-y-2"
-                    >
-                      <p :if={@lyric_search.error} class="text-sm text-warning">
-                        {@lyric_search.error}
-                      </p>
-                      <button
-                        :for={hit <- @lyric_search.results}
-                        id={"pick-lyrics-#{entry.id}-#{hit.id}"}
-                        type="button"
-                        class="btn btn-sm btn-soft w-full justify-start text-left"
-                        phx-click="pick_lyrics"
-                        phx-value-id={entry.id}
-                        phx-value-lrclib-id={hit.id}
-                      >
-                        {Catalog.format_title(hit.track_name, hit.artist_name)}
-                        <span :if={hit.album_name} class="text-base-content/60 font-normal">
-                          · {hit.album_name}
-                        </span>
-                      </button>
+                      {if @changing_lyrics_id == entry.id,
+                        do: "Hide lyrics search",
+                        else: "Change lyrics"}
+                    </.button>
+                    <div :if={@changing_lyrics_id == entry.id} class="space-y-3">
+                      <.lyrics_editor entry={entry} lyric_search={@lyric_search} />
                     </div>
-                    <.form
-                      for={%{}}
-                      id={"lyrics-paste-#{entry.id}"}
-                      phx-submit="paste_lyrics"
-                      class="space-y-2"
-                    >
-                      <input type="hidden" name="entry_id" value={entry.id} />
-                      <.input
-                        id={"lyrics-paste-text-#{entry.id}"}
-                        name="lrc_text"
-                        type="textarea"
-                        label="Paste .lrc"
-                        value=""
-                      />
-                      <.button type="submit">Save pasted lyrics</.button>
-                    </.form>
                   </div>
                   <div
                     :if={
@@ -753,10 +817,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                     </.button>
                   </div>
                   <.button
-                    :if={
-                      @host? and Catalog.has_original?(entry.song) and
-                        Catalog.has_lyrics?(entry.song)
-                    }
+                    :if={@host? and can_preview_lyrics?(entry)}
                     id={"tune-lyrics-#{entry.id}"}
                     type="button"
                     phx-click="tune_lyrics"
@@ -827,6 +888,76 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         </div>
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :entry, :map, required: true
+  attr :lyric_search, :map, default: nil
+
+  defp lyrics_editor(assigns) do
+    ~H"""
+    <.form
+      for={%{}}
+      id={"lyrics-search-#{@entry.id}"}
+      phx-submit="search_lyrics"
+      class="space-y-2"
+    >
+      <input type="hidden" name="entry_id" value={@entry.id} />
+      <.input
+        id={"lyrics-title-#{@entry.id}"}
+        name="title"
+        label="Title"
+        value={@entry.song_title}
+        required
+      />
+      <.input
+        id={"lyrics-artist-#{@entry.id}"}
+        name="artist"
+        label="Artist"
+        value={(@entry.song && @entry.song.artist) || ""}
+        required
+      />
+      <.button type="submit">Search lyrics</.button>
+    </.form>
+    <div
+      :if={@lyric_search && @lyric_search.entry_id == @entry.id}
+      id={"lyrics-results-#{@entry.id}"}
+      class="space-y-2"
+    >
+      <p :if={@lyric_search.error} class="text-sm text-warning">
+        {@lyric_search.error}
+      </p>
+      <button
+        :for={hit <- @lyric_search.results}
+        id={"pick-lyrics-#{@entry.id}-#{hit.id}"}
+        type="button"
+        class="btn btn-sm btn-soft w-full justify-start text-left"
+        phx-click="pick_lyrics"
+        phx-value-id={@entry.id}
+        phx-value-lrclib-id={hit.id}
+      >
+        {Catalog.format_title(hit.track_name, hit.artist_name)}
+        <span :if={hit.album_name} class="text-base-content/60 font-normal">
+          · {hit.album_name}
+        </span>
+      </button>
+    </div>
+    <.form
+      for={%{}}
+      id={"lyrics-paste-#{@entry.id}"}
+      phx-submit="paste_lyrics"
+      class="space-y-2"
+    >
+      <input type="hidden" name="entry_id" value={@entry.id} />
+      <.input
+        id={"lyrics-paste-text-#{@entry.id}"}
+        name="lrc_text"
+        type="textarea"
+        label="Paste .lrc"
+        value=""
+      />
+      <.button type="submit">Save pasted lyrics</.button>
+    </.form>
     """
   end
 
@@ -983,29 +1114,192 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   end
 
   defp maybe_push_playback(socket) do
-    case socket.assigns.playback do
-      nil -> socket
-      playback -> sync_playback(socket, playback)
-    end
+    push_player_sync(socket)
   end
 
   defp sync_playback(socket, playback) do
     socket
     |> assign(:playback, playback)
-    |> push_event("player-sync", player_payload(playback))
+    |> push_player_sync()
   end
 
-  defp player_payload(nil), do: %{}
+  defp push_player_sync(socket) do
+    if connected?(socket) do
+      push_event(socket, "player-sync", player_payload(socket, socket.assigns.playback))
+    else
+      socket
+    end
+  end
 
-  defp player_payload(playback) do
-    %{
-      playing: playback.playing?,
-      position_ms: playback.position_ms,
-      server_time_ms: playback.server_time_ms,
-      audio_url: playback.audio_url,
-      lyrics: playback.lyrics,
-      offset_ms: Map.get(playback, :offset_ms, 0)
+  defp player_payload(socket, playback) do
+    previewing? = socket.assigns.host? and not is_nil(socket.assigns.lyric_preview)
+
+    base = %{
+      muted: previewing?,
+      show_controls: not previewing?
     }
+
+    case playback do
+      nil ->
+        Map.merge(base, %{
+          playing: false,
+          position_ms: 0,
+          server_time_ms: System.system_time(:millisecond),
+          audio_url: nil,
+          lyrics: [],
+          offset_ms: 0
+        })
+
+      playback ->
+        Map.merge(base, %{
+          playing: playback.playing?,
+          position_ms: playback.position_ms,
+          server_time_ms: playback.server_time_ms,
+          audio_url: playback.audio_url,
+          lyrics: playback.lyrics,
+          offset_ms: Map.get(playback, :offset_ms, 0)
+        })
+    end
+  end
+
+  defp open_lyric_preview(socket, preview) do
+    socket
+    |> assign(:lyric_preview, preview)
+    |> push_preview_sync(preview)
+    |> push_player_sync()
+  end
+
+  defp close_lyric_preview(socket) do
+    socket
+    |> assign(:lyric_preview, nil)
+    |> push_player_sync()
+  end
+
+  defp push_preview_sync(socket, preview) do
+    if connected?(socket) do
+      push_event(socket, "preview-sync", %{
+        playing: true,
+        audio_url: preview.audio_url,
+        lyrics: preview.lyrics,
+        offset_ms: preview.offset_ms
+      })
+    else
+      socket
+    end
+  end
+
+  defp nudge_lyric_preview(socket, delta_ms) do
+    preview = socket.assigns.lyric_preview
+
+    cond do
+      is_nil(preview) ->
+        put_flash(socket, :error, "Not found")
+
+      true ->
+        with {:ok, song} <- Catalog.get_song(preview.song_id),
+             {:ok, song} <-
+               Rooms.nudge_song_offset(
+                 socket.assigns.room,
+                 host_token(socket),
+                 song,
+                 delta_ms
+               ) do
+          preview = %{preview | offset_ms: Catalog.lyric_offset_ms(song)}
+
+          socket
+          |> assign(:lyric_preview, preview)
+          |> push_preview_sync(preview)
+        else
+          {:error, reason} -> put_flash(socket, :error, error_text(reason))
+        end
+    end
+  end
+
+  defp refresh_lyric_preview(socket, %Queue.Entry{} = entry) do
+    case socket.assigns.lyric_preview do
+      %{entry_id: id} when id == entry.id ->
+        case Rooms.lyric_preview(socket.assigns.room, host_token(socket), entry) do
+          {:ok, preview} -> open_lyric_preview(socket, preview)
+          {:error, _} -> close_lyric_preview(socket)
+        end
+
+      _ ->
+        socket
+    end
+  end
+
+  defp finish_lyric_edit(socket, entry) do
+    socket
+    |> assign(:lyric_search, nil)
+    |> assign(:changing_lyrics_id, nil)
+    |> refresh_lyric_preview(entry)
+    |> restream_queue()
+  end
+
+  defp restream_queue(socket) do
+    stream(socket, :queue, Queue.list_entries(socket.assigns.room.id), reset: true)
+  end
+
+  defp clear_lyric_search(socket, entry_id) do
+    search = socket.assigns.lyric_search
+
+    if search && search.entry_id == entry_id do
+      assign(socket, :lyric_search, nil)
+    else
+      socket
+    end
+  end
+
+  defp authorize_lyric_search(socket, entry) do
+    cond do
+      can_attach_missing_lyrics?(entry) -> :ok
+      socket.assigns.host? and can_replace_lyrics?(entry) -> :ok
+      true -> {:error, :unauthorized}
+    end
+  end
+
+  defp authorize_lyric_edit(socket, entry) do
+    cond do
+      can_attach_missing_lyrics?(entry) -> :ok
+      socket.assigns.host? and can_replace_lyrics?(entry) -> :ok
+      true -> {:error, :unauthorized}
+    end
+  end
+
+  defp search_lyric_hits(socket, entry, title, artist) do
+    if can_replace_lyrics?(entry) do
+      Catalog.Lyrics.search(artist, title)
+    else
+      with {:ok, song} <- ensure_song(socket, entry, title, artist),
+           {:ok, _entry} <- Queue.attach_song(entry, song) do
+        Catalog.Lyrics.search(artist, title)
+      end
+    end
+  end
+
+  defp song_for_lyric_edit(socket, entry) do
+    if can_replace_lyrics?(entry) do
+      case entry.song do
+        %{} = song -> {:ok, song}
+        _ -> {:error, :not_found}
+      end
+    else
+      ensure_song(socket, entry, entry.song_title, (entry.song && entry.song.artist) || "")
+    end
+  end
+
+  defp can_preview_lyrics?(entry) do
+    entry.status in [:requested, :preparing, :ready] and
+      Catalog.has_original?(entry.song) and
+      Catalog.has_lyrics?(entry.song)
+  end
+
+  defp can_replace_lyrics?(entry) do
+    entry.status in [:requested, :preparing, :ready] and Catalog.has_lyrics?(entry.song)
+  end
+
+  defp can_attach_missing_lyrics?(entry) do
+    entry.status in [:requested, :preparing] and not Catalog.has_lyrics?(entry.song)
   end
 
   defp maybe_assign_text(socket, _key, nil), do: socket
@@ -1019,10 +1313,9 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   defp playback_heading(_), do: "Nothing yet — host can start the singer or demo track"
 
-  defp playback_mode(%{mode: mode}) when mode in [:tuning, :singing], do: mode
+  defp playback_mode(%{mode: :singing}), do: :singing
   defp playback_mode(_), do: nil
 
-  defp playback_mode_label(%{mode: :tuning}), do: "Tuning (vocals on)"
   defp playback_mode_label(%{mode: :singing}), do: "Singer (backing track)"
 
   defp stem_progress_label(%{stem_status: :queued}), do: "Queued"
@@ -1087,7 +1380,6 @@ defmodule AllHandsSingAlongWeb.RoomLive do
     if Catalog.stem_failed?(song), do: "Retry", else: "Remove vocals"
   end
 
-  defp error_text(:tuning), do: "Skip is for the singer, not lyric tuning"
   defp error_text(:unauthorized), do: "Host only"
   defp error_text(:missing_audio), do: "Attach audio before marking ready"
   defp error_text(:missing_lyrics), do: "Lyrics are still missing"

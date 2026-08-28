@@ -187,7 +187,7 @@ defmodule AllHandsSingAlong.Catalog do
     if lines == [] do
       {:error, :invalid_lrc}
     else
-      update_song(song, %{lrc_text: lrc})
+      update_song(song, %{lrc_text: lrc, lyric_offset_ms: 0})
     end
   end
 

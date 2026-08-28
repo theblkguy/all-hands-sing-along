@@ -355,7 +355,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     assert second_after.position < first_after.position
   end
 
-  test "host can tune lyrics on the original then start the singer mix", %{conn: conn} do
+  test "host can preview lyrics locally then start the singer mix", %{conn: conn} do
     room = Fixtures.room_fixture()
 
     song =
@@ -370,20 +370,61 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     assert has_element?(view, "#tune-lyrics-#{entry.id}")
+    assert has_element?(view, "#skip-song")
 
     view |> element("#tune-lyrics-#{entry.id}") |> render_click()
-    assert has_element?(view, "#playback-mode", "Tuning (vocals on)")
-    refute has_element?(view, "#skip-song")
+    assert has_element?(view, "#lyric-preview-card")
+    assert has_element?(view, "#lyric-preview-title", "Align Me — Test Artist")
+    assert has_element?(view, "#singer-muted-note")
+    refute has_element?(view, "#playback-mode", "Singer (backing track)")
+    assert has_element?(view, "#skip-song")
+    assert has_element?(view, "#now-playing-title", "Nothing yet")
+
+    view |> element("#preview-lyrics-earlier") |> render_click()
+    assert has_element?(view, "#lyric-preview-offset", "Lyrics 0.1s earlier")
 
     {:ok, still} = Queue.get_entry(entry.id)
     assert still.status == :ready
+    assert still.song.lyric_offset_ms == 100
 
     view |> element("#start-singer") |> render_click()
+    refute has_element?(view, "#lyric-preview-card")
     assert has_element?(view, "#playback-mode", "Singer (backing track)")
     assert has_element?(view, "#skip-song")
 
     {:ok, singing} = Queue.get_entry(entry.id)
     assert singing.status == :now_singing
+  end
+
+  test "host preview does not change the guest now-playing track", %{conn: conn} do
+    room = Fixtures.room_fixture()
+    current = Fixtures.song_fixture(room, %{title: "Now"})
+    nxt = Fixtures.song_fixture(room, %{title: "Next", original_path: "/uploads/next-orig.wav"})
+
+    _current_entry =
+      Fixtures.entry_fixture(room, %{singer_name: "Ada", song_title: "Now", song: current})
+
+    next_entry =
+      Fixtures.entry_fixture(room, %{singer_name: "Sam", song_title: "Next", song: nxt})
+
+    {:ok, host, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
+    host |> element("#start-singer") |> render_click()
+    assert has_element?(host, "#now-playing-title", "Now — Test Artist")
+
+    guest_conn =
+      conn
+      |> recycle()
+      |> guest_conn(room, "Sam")
+
+    {:ok, guest, _html} = live(guest_conn, ~p"/rooms/#{room.code}")
+    assert has_element?(guest, "#now-playing-title", "Now — Test Artist")
+
+    host |> element("#tune-lyrics-#{next_entry.id}") |> render_click()
+    assert has_element?(host, "#lyric-preview-title", "Next — Test Artist")
+    assert has_element?(host, "#now-playing-title", "Now — Test Artist")
+    assert has_element?(guest, "#now-playing-title", "Now — Test Artist")
+    refute has_element?(guest, "#lyric-preview-card")
+    refute has_element?(guest, "#tune-lyrics-#{next_entry.id}")
   end
 
   test "guest cannot tune lyrics", %{conn: conn} do
@@ -396,6 +437,90 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
     refute has_element?(view, "#tune-lyrics-#{entry.id}")
     html = render_click(view, "tune_lyrics", %{"id" => to_string(entry.id)})
+    assert html =~ "Host only"
+  end
+
+  test "host can search and pick replacement lyrics on a ready song", %{conn: conn} do
+    room = Fixtures.room_fixture()
+
+    song =
+      Fixtures.song_fixture(room, %{
+        title: "If It Isn't Love",
+        artist: "New Edition",
+        lrc_text: "[00:00.00]Wrong words",
+        lyric_offset_ms: 700
+      })
+
+    entry =
+      Fixtures.entry_fixture(room, %{
+        singer_name: "Sam",
+        song_title: "If It Isn't Love",
+        song: song
+      })
+
+    Req.Test.stub(AllHandsSingAlong.Catalog.Lyrics, fn conn ->
+      conn = Plug.Conn.fetch_query_params(conn)
+
+      cond do
+        String.ends_with?(conn.request_path, "/search") ->
+          Req.Test.json(conn, [
+            %{
+              "id" => 99,
+              "trackName" => "If It Isn't Love",
+              "artistName" => "New Edition",
+              "albumName" => "Heart Break",
+              "duration" => 220
+            }
+          ])
+
+        String.ends_with?(conn.request_path, "/get/99") ->
+          Req.Test.json(conn, %{"syncedLyrics" => "[00:08.00]I think it's time"})
+
+        true ->
+          conn
+          |> Plug.Conn.put_status(404)
+          |> Req.Test.json(%{"message" => "Not Found"})
+      end
+    end)
+
+    {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
+    assert has_element?(view, "#change-lyrics-#{entry.id}")
+    refute has_element?(view, "#lyrics-search-#{entry.id}")
+
+    view |> element("#change-lyrics-#{entry.id}") |> render_click()
+    assert has_element?(view, "#lyrics-search-#{entry.id}")
+
+    view
+    |> form("#lyrics-search-#{entry.id}", %{
+      title: "If It Isnt Love",
+      artist: "New Edition"
+    })
+    |> render_submit()
+
+    {:ok, after_search} = Queue.get_entry(entry.id)
+    assert after_search.song.title == "If It Isn't Love"
+    assert after_search.song.lrc_text =~ "Wrong words"
+
+    assert has_element?(view, "#pick-lyrics-#{entry.id}-99")
+    view |> element("#pick-lyrics-#{entry.id}-99") |> render_click()
+
+    {:ok, updated} = Queue.get_entry(entry.id)
+    assert updated.song.lrc_text =~ "I think it's time"
+    refute updated.song.lrc_text =~ "Wrong words"
+    assert updated.song.lyric_offset_ms == 0
+    assert updated.song.title == "If It Isn't Love"
+  end
+
+  test "guest cannot change lyrics that are already attached", %{conn: conn} do
+    room = Fixtures.room_fixture()
+    song = Fixtures.song_fixture(room, %{title: "Keep These"})
+
+    entry =
+      Fixtures.entry_fixture(room, %{singer_name: "Sam", song_title: "Keep These", song: song})
+
+    {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
+    refute has_element?(view, "#change-lyrics-#{entry.id}")
+    html = render_click(view, "toggle_change_lyrics", %{"id" => to_string(entry.id)})
     assert html =~ "Host only"
   end
 

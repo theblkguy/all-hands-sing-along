@@ -74,26 +74,20 @@ defmodule AllHandsSingAlong.Rooms do
   @spec skip(Room.t(), String.t()) :: {:ok, map()} | {:error, atom()}
   def skip(%Room{} = room, token) do
     with :ok <- authorize_host(room, token) do
-      case Playback.get(room.id) do
-        %{mode: :tuning} ->
-          {:error, :tuning}
+      Queue.finish_now_singing(room.id)
 
-        _ ->
-          Queue.finish_now_singing(room.id)
+      Phoenix.PubSub.broadcast(
+        AllHandsSingAlong.PubSub,
+        Queue.topic(room.code),
+        {:queue_updated, room.id}
+      )
 
-          Phoenix.PubSub.broadcast(
-            AllHandsSingAlong.PubSub,
-            Queue.topic(room.code),
-            {:queue_updated, room.id}
-          )
-
-          start_track(room)
-      end
+      start_track(room)
     end
   end
 
-  @spec tune_lyrics(Room.t(), String.t(), Entry.t()) :: {:ok, map()} | {:error, atom()}
-  def tune_lyrics(%Room{} = room, token, %Entry{} = entry) do
+  @spec lyric_preview(Room.t(), String.t(), Entry.t()) :: {:ok, map()} | {:error, atom()}
+  def lyric_preview(%Room{} = room, token, %Entry{} = entry) do
     song = entry.song
 
     cond do
@@ -103,6 +97,9 @@ defmodule AllHandsSingAlong.Rooms do
       entry.room_id != room.id ->
         {:error, :not_found}
 
+      entry.status not in [:requested, :preparing, :ready] ->
+        {:error, :not_found}
+
       not Catalog.has_original?(song) ->
         {:error, :missing_audio}
 
@@ -110,9 +107,7 @@ defmodule AllHandsSingAlong.Rooms do
         {:error, :missing_lyrics}
 
       true ->
-        track = tune_track_from_entry(room, entry)
-        :ok = Playback.play(room.id, track)
-        {:ok, Playback.get(room.id)}
+        {:ok, preview_from_entry(entry)}
     end
   end
 
@@ -123,6 +118,20 @@ defmodule AllHandsSingAlong.Rooms do
       snapshot = Playback.get(room.id)
       persist_lyric_offset(snapshot)
       {:ok, snapshot}
+    end
+  end
+
+  @spec nudge_song_offset(Room.t(), String.t(), Catalog.Song.t(), integer()) ::
+          {:ok, Catalog.Song.t()} | {:error, atom() | Ecto.Changeset.t()}
+  def nudge_song_offset(%Room{} = room, token, %Catalog.Song{} = song, delta_ms)
+      when is_integer(delta_ms) do
+    with :ok <- authorize_host(room, token),
+         true <- song.room_id == room.id do
+      offset = Catalog.clamp_lyric_offset(Catalog.lyric_offset_ms(song) + delta_ms)
+      Catalog.update_song(song, %{lyric_offset_ms: offset})
+    else
+      false -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -250,20 +259,18 @@ defmodule AllHandsSingAlong.Rooms do
     }
   end
 
-  defp tune_track_from_entry(room, %Entry{} = entry) do
+  defp preview_from_entry(%Entry{} = entry) do
     song = entry.song
 
     %{
-      room_code: room.code,
+      entry_id: entry.id,
+      song_id: song.id,
       audio_url: Catalog.original_path(song),
       lyrics: Sync.parse_lrc(song.lrc_text),
       title: entry.song_title,
       artist: song.artist,
       singer_name: entry.singer_name,
-      position_ms: 0,
-      song_id: song.id,
-      offset_ms: Catalog.lyric_offset_ms(song),
-      mode: :tuning
+      offset_ms: Catalog.lyric_offset_ms(song)
     }
   end
 

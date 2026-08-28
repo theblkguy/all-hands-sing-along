@@ -25,12 +25,13 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/all_hands_sing_along"
 import topbar from "../vendor/topbar"
 import KaraokePlayer from "./hooks/karaoke_player"
+import LyricPreview from "./hooks/lyric_preview"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, KaraokePlayer},
+  hooks: {...colocatedHooks, KaraokePlayer, LyricPreview},
 })
 
 // Show progress bar on live navigation and form submits

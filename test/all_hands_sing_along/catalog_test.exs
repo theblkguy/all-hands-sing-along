@@ -91,6 +91,17 @@ defmodule AllHandsSingAlong.CatalogTest do
 
     assert {:ok, song} = Catalog.apply_lrc(song, "[00:01.00]When I first saw you")
     assert song.lrc_text =~ "When I first saw you"
+    assert song.lyric_offset_ms == 0
+  end
+
+  test "apply_lrc/2 resets lyric offset when replacing text" do
+    room = Fixtures.room_fixture()
+    song = Fixtures.song_fixture(room, %{title: "Offset Reset", lyric_offset_ms: 800})
+    assert song.lyric_offset_ms == 800
+
+    assert {:ok, song} = Catalog.apply_lrc(song, "[00:02.00]A better match")
+    assert song.lrc_text =~ "A better match"
+    assert song.lyric_offset_ms == 0
   end
 
   test "get_song/1 returns not_found" do

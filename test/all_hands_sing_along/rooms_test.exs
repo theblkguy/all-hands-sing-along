@@ -75,7 +75,7 @@ defmodule AllHandsSingAlong.RoomsTest do
     assert snapshot.offset_ms == -500
   end
 
-  test "tune_lyrics/3 plays the original without starting the singer" do
+  test "lyric_preview/3 does not change room playback or queue status" do
     room = Fixtures.room_fixture()
 
     song =
@@ -88,18 +88,19 @@ defmodule AllHandsSingAlong.RoomsTest do
     entry =
       Fixtures.entry_fixture(room, %{singer_name: "Sam", song_title: "Tune Me", song: song})
 
-    assert {:error, :unauthorized} = Rooms.tune_lyrics(room, "wrong-token-wrong1", entry)
-    assert {:ok, snapshot} = Rooms.tune_lyrics(room, room.host_token, entry)
-    assert snapshot.playing?
-    assert snapshot.mode == :tuning
-    assert snapshot.audio_url == "/uploads/with-vocals.wav"
-    assert snapshot.offset_ms == 0
+    before = Rooms.playback_snapshot(room)
+    assert {:error, :unauthorized} = Rooms.lyric_preview(room, "wrong-token-wrong1", entry)
+    assert {:ok, preview} = Rooms.lyric_preview(room, room.host_token, entry)
+    assert preview.audio_url == "/uploads/with-vocals.wav"
+    assert preview.entry_id == entry.id
+    assert preview.offset_ms == 0
+    assert Rooms.playback_snapshot(room) == before
 
     {:ok, still} = AllHandsSingAlong.Queue.get_entry(entry.id)
     assert still.status == :ready
   end
 
-  test "lyric offset is saved on the song and reused for the singer mix" do
+  test "nudge_song_offset/4 is host-only and reused for the singer mix" do
     room = Fixtures.room_fixture()
 
     song =
@@ -112,9 +113,14 @@ defmodule AllHandsSingAlong.RoomsTest do
     entry =
       Fixtures.entry_fixture(room, %{singer_name: "Sam", song_title: "Keep Time", song: song})
 
-    assert {:ok, _} = Rooms.tune_lyrics(room, room.host_token, entry)
-    assert {:ok, tuned} = Rooms.nudge_lyrics(room, room.host_token, 500)
-    assert tuned.offset_ms == 500
+    assert {:ok, preview} = Rooms.lyric_preview(room, room.host_token, entry)
+
+    assert {:error, :unauthorized} =
+             Rooms.nudge_song_offset(room, "wrong-token-wrong1", song, 500)
+
+    assert {:ok, tuned} = Rooms.nudge_song_offset(room, room.host_token, song, 500)
+    assert tuned.lyric_offset_ms == 500
+    assert preview.offset_ms == 0
 
     {:ok, saved} = AllHandsSingAlong.Catalog.get_song(song.id)
     assert saved.lyric_offset_ms == 500
