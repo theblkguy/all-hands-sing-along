@@ -41,6 +41,15 @@ const KaraokePlayer = {
       offset_ms: nextOffset
     }
 
+    if (this.audio) {
+      this.audio.muted = !!payload.muted
+      if (payload.show_controls === false) {
+        this.audio.removeAttribute("controls")
+      } else {
+        this.audio.setAttribute("controls", "")
+      }
+    }
+
     if (trackChanged && this.audio) {
       this.audio.setAttribute("data-src", nextSrc)
       this.audio.src = nextSrc
