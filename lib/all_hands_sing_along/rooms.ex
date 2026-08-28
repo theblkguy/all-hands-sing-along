@@ -50,10 +50,10 @@ defmodule AllHandsSingAlong.Rooms do
   def play(%Room{} = room, token) do
     with :ok <- authorize_host(room, token) do
       case Playback.get(room.id) do
-        %{playing?: true, audio_url: url} when is_binary(url) ->
+        %{mode: :singing, playing?: true, audio_url: url} when is_binary(url) ->
           {:ok, Playback.get(room.id)}
 
-        %{audio_url: url, playing?: false} when is_binary(url) ->
+        %{mode: :singing, audio_url: url, playing?: false} when is_binary(url) ->
           :ok = Playback.resume(room.id)
           {:ok, Playback.get(room.id)}
 
@@ -74,15 +74,45 @@ defmodule AllHandsSingAlong.Rooms do
   @spec skip(Room.t(), String.t()) :: {:ok, map()} | {:error, atom()}
   def skip(%Room{} = room, token) do
     with :ok <- authorize_host(room, token) do
-      Queue.finish_now_singing(room.id)
+      case Playback.get(room.id) do
+        %{mode: :tuning} ->
+          {:error, :tuning}
 
-      Phoenix.PubSub.broadcast(
-        AllHandsSingAlong.PubSub,
-        Queue.topic(room.code),
-        {:queue_updated, room.id}
-      )
+        _ ->
+          Queue.finish_now_singing(room.id)
 
-      start_track(room)
+          Phoenix.PubSub.broadcast(
+            AllHandsSingAlong.PubSub,
+            Queue.topic(room.code),
+            {:queue_updated, room.id}
+          )
+
+          start_track(room)
+      end
+    end
+  end
+
+  @spec tune_lyrics(Room.t(), String.t(), Entry.t()) :: {:ok, map()} | {:error, atom()}
+  def tune_lyrics(%Room{} = room, token, %Entry{} = entry) do
+    song = entry.song
+
+    cond do
+      authorize_host(room, token) != :ok ->
+        {:error, :unauthorized}
+
+      entry.room_id != room.id ->
+        {:error, :not_found}
+
+      not Catalog.has_original?(song) ->
+        {:error, :missing_audio}
+
+      not Catalog.has_lyrics?(song) ->
+        {:error, :missing_lyrics}
+
+      true ->
+        track = tune_track_from_entry(room, entry)
+        :ok = Playback.play(room.id, track)
+        {:ok, Playback.get(room.id)}
     end
   end
 
@@ -90,7 +120,9 @@ defmodule AllHandsSingAlong.Rooms do
   def nudge_lyrics(%Room{} = room, token, delta_ms) when is_integer(delta_ms) do
     with :ok <- authorize_host(room, token),
          :ok <- Playback.nudge_offset(room.id, delta_ms) do
-      {:ok, Playback.get(room.id)}
+      snapshot = Playback.get(room.id)
+      persist_lyric_offset(snapshot)
+      {:ok, snapshot}
     end
   end
 
@@ -126,6 +158,49 @@ defmodule AllHandsSingAlong.Rooms do
          true <- entry.room_id == room.id do
       Queue.move_ready(entry, direction)
     else
+      false -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @spec use_original_audio(Room.t(), String.t(), Entry.t()) ::
+          {:ok, Entry.t()} | {:error, atom() | Ecto.Changeset.t()}
+  def use_original_audio(%Room{} = room, token, %Entry{} = entry) do
+    with :ok <- authorize_host(room, token),
+         true <- entry.room_id == room.id,
+         %{} = song <- entry.song,
+         {:ok, song} <- Catalog.use_original_as_instrumental(song) do
+      Queue.attach_song(entry, song)
+    else
+      nil -> {:error, :missing_audio}
+      false -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @spec retry_stems(Room.t(), String.t(), Entry.t()) :: {:ok, Entry.t()} | {:error, atom()}
+  def retry_stems(%Room{} = room, token, %Entry{} = entry) do
+    with :ok <- authorize_host(room, token),
+         true <- entry.room_id == room.id,
+         %{} = song <- entry.song do
+      AllHandsSingAlong.Catalog.StemSeparator.retry(song.id)
+      {:ok, entry}
+    else
+      nil -> {:error, :missing_audio}
+      false -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @spec cancel_stems(Room.t(), String.t(), Entry.t()) :: {:ok, Entry.t()} | {:error, atom()}
+  def cancel_stems(%Room{} = room, token, %Entry{} = entry) do
+    with :ok <- authorize_host(room, token),
+         true <- entry.room_id == room.id,
+         %{} = song <- entry.song do
+      AllHandsSingAlong.Catalog.StemSeparator.cancel(song.id)
+      {:ok, entry}
+    else
+      nil -> {:error, :missing_audio}
       false -> {:error, :not_found}
       {:error, reason} -> {:error, reason}
     end
@@ -168,9 +243,42 @@ defmodule AllHandsSingAlong.Rooms do
       title: entry.song_title,
       artist: song && song.artist,
       singer_name: entry.singer_name,
-      position_ms: 0
+      position_ms: 0,
+      song_id: song && song.id,
+      offset_ms: Catalog.lyric_offset_ms(song),
+      mode: :singing
     }
   end
+
+  defp tune_track_from_entry(room, %Entry{} = entry) do
+    song = entry.song
+
+    %{
+      room_code: room.code,
+      audio_url: Catalog.original_path(song),
+      lyrics: Sync.parse_lrc(song.lrc_text),
+      title: entry.song_title,
+      artist: song.artist,
+      singer_name: entry.singer_name,
+      position_ms: 0,
+      song_id: song.id,
+      offset_ms: Catalog.lyric_offset_ms(song),
+      mode: :tuning
+    }
+  end
+
+  defp persist_lyric_offset(%{song_id: song_id, offset_ms: offset_ms})
+       when is_integer(song_id) and is_integer(offset_ms) do
+    case Catalog.get_song(song_id) do
+      {:ok, song} ->
+        Catalog.update_song(song, %{lyric_offset_ms: Catalog.clamp_lyric_offset(offset_ms)})
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp persist_lyric_offset(_), do: :ok
 
   defp fixture_track(room) do
     %{
@@ -180,7 +288,10 @@ defmodule AllHandsSingAlong.Rooms do
       title: Catalog.fixture_title(),
       artist: nil,
       singer_name: nil,
-      position_ms: 0
+      position_ms: 0,
+      song_id: nil,
+      offset_ms: 0,
+      mode: :singing
     }
   end
 

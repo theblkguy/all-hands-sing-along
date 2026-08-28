@@ -20,6 +20,21 @@ defmodule AllHandsSingAlong.CatalogTest do
     assert Catalog.playable?(song)
   end
 
+  test "prepared?/1 requires instrumental audio, not just the original" do
+    room = Fixtures.room_fixture()
+
+    original_only =
+      Fixtures.song_fixture(room, %{
+        title: "With Vocals",
+        original_path: Catalog.fixture_path(),
+        instrumental_path: nil
+      })
+
+    refute Catalog.playable?(original_only)
+    refute Catalog.prepared?(original_only)
+    assert Catalog.needs_isolation?(original_only)
+  end
+
   test "create_song/2 requires artist" do
     room = Fixtures.room_fixture()
     assert {:error, changeset} = Catalog.create_song(room, %{title: "Levitating"})

@@ -68,6 +68,12 @@ config :all_hands_sing_along, AllHandsSingAlong.Catalog.Lyrics,
   search_url: "https://lrclib.net/api/search",
   req_options: []
 
+config :all_hands_sing_along, AllHandsSingAlong.Catalog.StemSeparator,
+  adapter: AllHandsSingAlong.Catalog.DemucsStemAdapter,
+  python: "python3",
+  enabled: true,
+  sync: false
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

@@ -7,6 +7,7 @@ defmodule AllHandsSingAlong.Catalog do
 
   alias AllHandsSingAlong.Catalog.Lyrics
   alias AllHandsSingAlong.Catalog.Song
+  alias AllHandsSingAlong.Catalog.StemSeparator
   alias AllHandsSingAlong.Repo
   alias AllHandsSingAlong.Rooms.Room
 
@@ -47,6 +48,9 @@ defmodule AllHandsSingAlong.Catalog do
   end
 
   def create_song(attrs) when is_map(attrs) do
+    attrs = stringify_keys(attrs)
+    attrs = maybe_mark_instrumental_ready(attrs)
+
     %Song{}
     |> Song.changeset(attrs)
     |> Repo.insert()
@@ -88,14 +92,81 @@ defmodule AllHandsSingAlong.Catalog do
   @spec playable_path(Song.t() | nil) :: String.t() | nil
   def playable_path(nil), do: nil
 
-  def playable_path(%Song{} = song) do
-    song.instrumental_path || song.original_path
-  end
+  def playable_path(%Song{instrumental_path: path}) when is_binary(path) and path != "", do: path
+
+  def playable_path(%Song{}), do: nil
 
   @spec playable?(Song.t() | nil) :: boolean()
   def playable?(song) do
     path = playable_path(song)
     is_binary(path) and path != ""
+  end
+
+  @spec missing_audio?(Song.t() | nil) :: boolean()
+  def missing_audio?(nil), do: true
+
+  def missing_audio?(%Song{} = song) do
+    not present?(song.original_path) and not present?(song.instrumental_path)
+  end
+
+  @spec has_original?(Song.t() | nil) :: boolean()
+  def has_original?(nil), do: false
+  def has_original?(%Song{} = song), do: present?(song.original_path)
+
+  @spec original_path(Song.t() | nil) :: String.t() | nil
+  def original_path(nil), do: nil
+
+  def original_path(%Song{original_path: path}) when is_binary(path) and path != "", do: path
+
+  def original_path(%Song{}), do: nil
+
+  @spec clamp_lyric_offset(integer()) :: integer()
+  def clamp_lyric_offset(ms) when is_integer(ms) do
+    ms |> max(-15_000) |> min(15_000)
+  end
+
+  def clamp_lyric_offset(_), do: 0
+
+  @spec lyric_offset_ms(Song.t() | nil) :: integer()
+  def lyric_offset_ms(%Song{lyric_offset_ms: ms}) when is_integer(ms), do: clamp_lyric_offset(ms)
+  def lyric_offset_ms(_), do: 0
+
+  @spec needs_isolation?(Song.t() | nil) :: boolean()
+  def needs_isolation?(nil), do: false
+
+  def needs_isolation?(%Song{} = song) do
+    present?(song.original_path) and not present?(song.instrumental_path)
+  end
+
+  @spec stem_in_progress?(Song.t() | nil) :: boolean()
+  def stem_in_progress?(%Song{stem_status: status}) when status in [:queued, :running], do: true
+  def stem_in_progress?(_), do: false
+
+  def stem_failed?(%Song{stem_status: :failed}), do: true
+  def stem_failed?(_), do: false
+
+  @spec maybe_start_isolation(Song.t()) :: Song.t()
+  def maybe_start_isolation(%Song{} = song) do
+    if needs_isolation?(song) do
+      StemSeparator.enqueue(song.id)
+    end
+
+    song
+  end
+
+  @spec use_original_as_instrumental(Song.t()) :: {:ok, Song.t()} | {:error, term()}
+  def use_original_as_instrumental(%Song{} = song) do
+    if present?(song.original_path) do
+      StemSeparator.cancel(song.id)
+
+      update_song(song, %{
+        instrumental_path: song.original_path,
+        stem_status: :ok,
+        stem_error: nil
+      })
+    else
+      {:error, :missing_audio}
+    end
   end
 
   @spec has_lyrics?(Song.t() | nil) :: boolean()
@@ -135,6 +206,20 @@ defmodule AllHandsSingAlong.Catalog do
     |> order_by([s], desc: s.inserted_at)
     |> Repo.all()
   end
+
+  defp maybe_mark_instrumental_ready(attrs) do
+    path = Map.get(attrs, "instrumental_path")
+    status = Map.get(attrs, "stem_status")
+
+    if present?(path) and is_nil(status) do
+      Map.put(attrs, "stem_status", :ok)
+    else
+      attrs
+    end
+  end
+
+  defp present?(path) when is_binary(path), do: String.trim(path) != ""
+  defp present?(_), do: false
 
   defp stringify_keys(attrs) do
     Map.new(attrs, fn

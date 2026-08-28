@@ -17,6 +17,7 @@ defmodule AllHandsSingAlong.Application do
       {Phoenix.PubSub, name: AllHandsSingAlong.PubSub},
       {Registry, keys: :unique, name: AllHandsSingAlong.Rooms.Registry},
       AllHandsSingAlong.Rooms.PlaybackSupervisor,
+      AllHandsSingAlong.Catalog.StemSeparator,
       AllHandsSingAlongWeb.Presence,
       AllHandsSingAlongWeb.Endpoint
     ]

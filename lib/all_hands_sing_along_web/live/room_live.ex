@@ -34,9 +34,11 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         |> assign(:song_title, "")
         |> assign(:song_artist, "")
         |> assign(:lyric_search, nil)
+        |> assign(:attaching_audio_id, nil)
         |> allow_upload(:audio, accept: :any, max_entries: 1, max_file_size: 32_000_000)
         |> allow_upload(:lrc, accept: :any, max_entries: 1, max_file_size: 200_000)
         |> allow_upload(:instrumental, accept: :any, max_entries: 1, max_file_size: 32_000_000)
+        |> allow_upload(:late_audio, accept: :any, max_entries: 1, max_file_size: 32_000_000)
         |> stream(:queue, Queue.list_entries(room.id))
 
       socket =
@@ -100,6 +102,19 @@ defmodule AllHandsSingAlongWeb.RoomLive do
     if socket.assigns.host? do
       case Rooms.skip(socket.assigns.room, host_token(socket)) do
         {:ok, playback} -> {:noreply, sync_playback(socket, playback)}
+        {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Host only")}
+    end
+  end
+
+  def handle_event("tune_lyrics", %{"id" => id}, socket) do
+    if socket.assigns.host? do
+      with {:ok, entry} <- fetch_room_entry(socket, id),
+           {:ok, playback} <- Rooms.tune_lyrics(socket.assigns.room, host_token(socket), entry) do
+        {:noreply, sync_playback(socket, playback)}
+      else
         {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
       end
     else
@@ -186,6 +201,45 @@ defmodule AllHandsSingAlongWeb.RoomLive do
     end
   end
 
+  def handle_event("validate_late_audio", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("start_attach_audio", %{"id" => id}, socket) do
+    with {:ok, entry} <- fetch_room_entry(socket, id),
+         true <- can_attach_audio?(socket, entry) do
+      {:noreply,
+       socket
+       |> assign(:attaching_audio_id, entry.id)
+       |> stream(:queue, Queue.list_entries(socket.assigns.room.id), reset: true)}
+    else
+      false ->
+        {:noreply, put_flash(socket, :error, "You can only add audio to your own queue song")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, error_text(reason))}
+    end
+  end
+
+  def handle_event("attach_audio", %{"entry_id" => id}, socket) do
+    case fetch_room_entry(socket, id) do
+      {:ok, entry} ->
+        cond do
+          not can_attach_audio?(socket, entry) ->
+            {:noreply, put_flash(socket, :error, "You can only add audio to your own queue song")}
+
+          not Catalog.missing_audio?(entry.song) ->
+            {:noreply, put_flash(socket, :error, "This song already has audio")}
+
+          true ->
+            save_late_audio(socket, entry)
+        end
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, error_text(reason))}
+    end
+  end
+
   def handle_event("validate_queue", params, socket) when is_map(params) do
     {:noreply,
      socket
@@ -215,6 +269,8 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
             case Queue.enqueue(socket.assigns.room, attrs) do
               {:ok, _entry} ->
+                _ = Catalog.maybe_start_isolation(song)
+
                 socket =
                   socket
                   |> assign(:song_title, "")
@@ -286,7 +342,13 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               })
 
             song ->
-              Catalog.update_song(song, %{instrumental_path: path})
+              AllHandsSingAlong.Catalog.StemSeparator.cancel(song.id)
+
+              Catalog.update_song(song, %{
+                instrumental_path: path,
+                stem_status: :ok,
+                stem_error: nil
+              })
           end
 
         with {:ok, song} <- song_result,
@@ -301,6 +363,24 @@ defmodule AllHandsSingAlongWeb.RoomLive do
     else
       {:noreply, put_flash(socket, :error, "Host only")}
     end
+  end
+
+  def handle_event("retry_stems", %{"id" => id}, socket) do
+    host_queue_action(socket, id, fn entry ->
+      Rooms.retry_stems(socket.assigns.room, host_token(socket), entry)
+    end)
+  end
+
+  def handle_event("cancel_stems", %{"id" => id}, socket) do
+    host_queue_action(socket, id, fn entry ->
+      Rooms.cancel_stems(socket.assigns.room, host_token(socket), entry)
+    end)
+  end
+
+  def handle_event("use_original", %{"id" => id}, socket) do
+    host_queue_action(socket, id, fn entry ->
+      Rooms.use_original_audio(socket.assigns.room, host_token(socket), entry)
+    end)
   end
 
   @impl true
@@ -336,16 +416,37 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               <span :if={@host?} class="badge badge-primary badge-sm ml-2">Host</span>
             </p>
           </div>
-          <div :if={@host?} class="join">
-            <.button type="button" variant="primary" phx-click="play">Play</.button>
-            <.button type="button" phx-click="pause">Pause</.button>
-            <.button type="button" phx-click="skip">Skip</.button>
+          <div :if={@host?} class="flex flex-col items-end gap-1">
+            <div class="join">
+              <.button id="start-singer" type="button" variant="primary" phx-click="play">
+                Start singer
+              </.button>
+              <.button type="button" phx-click="pause">Pause</.button>
+              <.button
+                :if={playback_mode(@playback) != :tuning}
+                id="skip-song"
+                type="button"
+                phx-click="skip"
+              >
+                Skip
+              </.button>
+            </div>
+            <p class="text-xs text-base-content/60">
+              Start singer plays the backing track (no vocals).
+            </p>
           </div>
         </div>
 
         <div class="card bg-base-200">
           <div class="card-body space-y-3">
             <p class="text-sm uppercase tracking-wide text-base-content/60">Now playing</p>
+            <p
+              :if={playback_mode(@playback)}
+              id="playback-mode"
+              class="badge badge-soft"
+            >
+              {playback_mode_label(@playback)}
+            </p>
             <p id="now-playing-title" class="text-xl font-medium">
               {playback_heading(@playback)}
             </p>
@@ -372,7 +473,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                 id="lyrics-later"
                 type="button"
                 phx-click="nudge_lyrics"
-                phx-value-delta="-500"
+                phx-value-delta="-100"
               >
                 Lyrics later
               </.button>
@@ -380,7 +481,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                 id="lyrics-earlier"
                 type="button"
                 phx-click="nudge_lyrics"
-                phx-value-delta="500"
+                phx-value-delta="100"
               >
                 Lyrics earlier
               </.button>
@@ -424,6 +525,14 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                     upload={@uploads.audio}
                     class="file-input file-input-bordered w-full"
                   />
+                  <div
+                    :for={entry <- @uploads.audio.entries}
+                    id="audio-upload-progress"
+                    class="space-y-1 pt-2"
+                  >
+                    <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
+                    <progress class="progress w-full" max="100" value={entry.progress}></progress>
+                  </div>
                 </div>
                 <div>
                   <p class="label mb-1">Lyrics .lrc (optional)</p>
@@ -431,6 +540,14 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                     upload={@uploads.lrc}
                     class="file-input file-input-bordered w-full"
                   />
+                  <div
+                    :for={entry <- @uploads.lrc.entries}
+                    id="lrc-upload-progress"
+                    class="space-y-1 pt-2"
+                  >
+                    <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
+                    <progress class="progress w-full" max="100" value={entry.progress}></progress>
+                  </div>
                 </div>
                 <.button type="submit" variant="primary">Add me to the queue</.button>
               </div>
@@ -450,11 +567,42 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                       </p>
                       <p class="text-sm text-base-content/70">{entry.singer_name}</p>
                       <p
+                        :if={
+                          entry.status in [:requested, :preparing] and
+                            Catalog.missing_audio?(entry.song)
+                        }
+                        id={"no-audio-#{entry.id}"}
+                        class="text-sm text-warning"
+                      >
+                        No song file yet. Upload one if you joined the queue first.
+                      </p>
+                      <p
                         :if={entry.status == :preparing and not Catalog.has_lyrics?(entry.song)}
                         id={"no-lyrics-#{entry.id}"}
                         class="text-sm text-warning"
                       >
                         Couldn't find timed lyrics. Search with a fuller title, or paste an .lrc.
+                      </p>
+                      <p
+                        :if={Catalog.stem_in_progress?(entry.song)}
+                        id={"stem-progress-#{entry.id}"}
+                        class="space-y-1"
+                      >
+                        <span class="text-sm text-base-content/70">
+                          {stem_progress_label(entry.song)}
+                        </span>
+                        <progress
+                          class="progress w-full"
+                          max="100"
+                          value={entry.song.stem_progress || 0}
+                        ></progress>
+                      </p>
+                      <p
+                        :if={Catalog.stem_failed?(entry.song)}
+                        id={"stem-failed-#{entry.id}"}
+                        class="text-sm text-warning"
+                      >
+                        {entry.song.stem_error || "Couldn't remove vocals."}
                       </p>
                     </div>
                     <span class="badge badge-soft">{status_label(entry.status)}</span>
@@ -528,6 +676,94 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                       <.button type="submit">Save pasted lyrics</.button>
                     </.form>
                   </div>
+                  <div
+                    :if={
+                      can_attach_audio?(@host?, @display_name, entry) and
+                        Catalog.missing_audio?(entry.song) and
+                        entry.status in [:requested, :preparing]
+                    }
+                    class="space-y-2 border-t border-base-300 pt-3"
+                  >
+                    <.button
+                      :if={@attaching_audio_id != entry.id}
+                      id={"start-attach-audio-#{entry.id}"}
+                      type="button"
+                      phx-click="start_attach_audio"
+                      phx-value-id={entry.id}
+                    >
+                      Upload audio
+                    </.button>
+                    <.form
+                      :if={@attaching_audio_id == entry.id}
+                      for={%{}}
+                      id={"attach-audio-#{entry.id}"}
+                      phx-change="validate_late_audio"
+                      phx-submit="attach_audio"
+                      class="space-y-2"
+                    >
+                      <input type="hidden" name="entry_id" value={entry.id} />
+                      <.live_file_input
+                        upload={@uploads.late_audio}
+                        class="file-input file-input-bordered w-full"
+                      />
+                      <div
+                        :for={upload_entry <- @uploads.late_audio.entries}
+                        id={"late-audio-progress-#{entry.id}"}
+                        class="space-y-1"
+                      >
+                        <p class="text-sm text-base-content/70">Uploading {upload_entry.progress}%</p>
+                        <progress
+                          class="progress w-full"
+                          max="100"
+                          value={upload_entry.progress}
+                        ></progress>
+                      </div>
+                      <.button type="submit">Save audio</.button>
+                    </.form>
+                  </div>
+                  <div
+                    :if={@host? and Catalog.needs_isolation?(entry.song)}
+                    class="flex flex-wrap gap-2"
+                  >
+                    <.button
+                      :if={Catalog.stem_in_progress?(entry.song)}
+                      id={"cancel-stems-#{entry.id}"}
+                      type="button"
+                      phx-click="cancel_stems"
+                      phx-value-id={entry.id}
+                    >
+                      Cancel
+                    </.button>
+                    <.button
+                      :if={not Catalog.stem_in_progress?(entry.song)}
+                      id={"retry-stems-#{entry.id}"}
+                      type="button"
+                      phx-click="retry_stems"
+                      phx-value-id={entry.id}
+                    >
+                      {stem_retry_label(entry.song)}
+                    </.button>
+                    <.button
+                      id={"use-original-#{entry.id}"}
+                      type="button"
+                      phx-click="use_original"
+                      phx-value-id={entry.id}
+                    >
+                      Use original anyway
+                    </.button>
+                  </div>
+                  <.button
+                    :if={
+                      @host? and Catalog.has_original?(entry.song) and
+                        Catalog.has_lyrics?(entry.song)
+                    }
+                    id={"tune-lyrics-#{entry.id}"}
+                    type="button"
+                    phx-click="tune_lyrics"
+                    phx-value-id={entry.id}
+                  >
+                    Tune lyrics
+                  </.button>
                   <div :if={@host? and entry.status == :ready} class="flex flex-wrap gap-2">
                     <.button
                       id={"move-up-#{entry.id}"}
@@ -566,6 +802,14 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                   upload={@uploads.instrumental}
                   class="file-input file-input-bordered w-full"
                 />
+                <div
+                  :for={entry <- @uploads.instrumental.entries}
+                  id="instrumental-upload-progress"
+                  class="space-y-1"
+                >
+                  <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
+                  <progress class="progress w-full" max="100" value={entry.progress}></progress>
+                </div>
                 <.button type="submit">Attach</.button>
               </div>
             </form>
@@ -587,7 +831,10 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   end
 
   defp consume_guest_media(socket, title, artist) do
-    socket = cancel_entries(socket, :instrumental)
+    socket =
+      socket
+      |> cancel_entries(:instrumental)
+      |> cancel_entries(:late_audio)
 
     audio_paths =
       consume_uploaded_entries(socket, :audio, fn %{path: path}, entry ->
@@ -636,6 +883,67 @@ defmodule AllHandsSingAlongWeb.RoomLive do
       [path | _] when is_binary(path) -> {:ok, socket, path}
       _ -> {:error, :no_file}
     end
+  end
+
+  defp save_late_audio(socket, entry) do
+    case consume_late_audio(socket) do
+      {:ok, socket, path} ->
+        song_result =
+          case entry.song do
+            nil ->
+              Catalog.create_prepared_song(socket.assigns.room, %{
+                title: entry.song_title,
+                artist: "Unknown",
+                original_path: path
+              })
+
+            song ->
+              Catalog.update_song(song, %{
+                original_path: path,
+                stem_status: :idle,
+                stem_error: nil
+              })
+          end
+
+        with {:ok, song} <- song_result,
+             {:ok, _entry} <- Queue.attach_song(entry, song) do
+          _ = Catalog.maybe_start_isolation(song)
+
+          {:noreply,
+           socket
+           |> assign(:attaching_audio_id, nil)
+           |> stream(:queue, Queue.list_entries(socket.assigns.room.id), reset: true)
+           |> put_flash(:info, "Audio added")}
+        else
+          {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
+        end
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, error_text(reason))}
+    end
+  end
+
+  defp consume_late_audio(socket) do
+    paths =
+      consume_uploaded_entries(socket, :late_audio, fn %{path: path}, entry ->
+        case Uploads.store_audio!(path, entry.client_name) do
+          {:ok, url} -> {:ok, url}
+          {:error, reason} -> {:postpone, reason}
+        end
+      end)
+
+    case paths do
+      [path | _] when is_binary(path) -> {:ok, socket, path}
+      _ -> {:error, :no_file}
+    end
+  end
+
+  defp can_attach_audio?(socket, entry) do
+    can_attach_audio?(socket.assigns.host?, socket.assigns.display_name, entry)
+  end
+
+  defp can_attach_audio?(host?, display_name, entry) do
+    host? or entry.singer_name == display_name
   end
 
   defp host_queue_action(socket, id, fun) do
@@ -703,13 +1011,27 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   defp maybe_assign_text(socket, _key, nil), do: socket
   defp maybe_assign_text(socket, key, value) when is_binary(value), do: assign(socket, key, value)
 
-  defp playback_heading(nil), do: "Nothing yet — host can play the demo track"
+  defp playback_heading(nil), do: "Nothing yet — host can start the singer or demo track"
 
   defp playback_heading(%{title: title} = playback) when is_binary(title) and title != "" do
     Catalog.format_title(title, Map.get(playback, :artist))
   end
 
-  defp playback_heading(_), do: "Nothing yet — host can play the demo track"
+  defp playback_heading(_), do: "Nothing yet — host can start the singer or demo track"
+
+  defp playback_mode(%{mode: mode}) when mode in [:tuning, :singing], do: mode
+  defp playback_mode(_), do: nil
+
+  defp playback_mode_label(%{mode: :tuning}), do: "Tuning (vocals on)"
+  defp playback_mode_label(%{mode: :singing}), do: "Singer (backing track)"
+
+  defp stem_progress_label(%{stem_status: :queued}), do: "Queued"
+
+  defp stem_progress_label(%{stem_status: :running, stem_progress: pct}) when is_integer(pct) do
+    "Removing vocals #{pct}%"
+  end
+
+  defp stem_progress_label(_), do: "Removing vocals…"
 
   defp offset_label(nil), do: "Lyrics on time"
   defp offset_label(0), do: "Lyrics on time"
@@ -761,9 +1083,16 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   defp status_label(:done), do: "Done"
   defp status_label(other), do: to_string(other)
 
+  defp stem_retry_label(song) do
+    if Catalog.stem_failed?(song), do: "Retry", else: "Remove vocals"
+  end
+
+  defp error_text(:tuning), do: "Skip is for the singer, not lyric tuning"
   defp error_text(:unauthorized), do: "Host only"
   defp error_text(:missing_audio), do: "Attach audio before marking ready"
   defp error_text(:missing_lyrics), do: "Lyrics are still missing"
+  defp error_text(:not_installed), do: "Vocal isolation isn’t installed on this machine"
+  defp error_text(:stem_failed), do: "Couldn't remove vocals"
   defp error_text(:not_ready), do: "Only ready songs can be reordered"
   defp error_text(:not_found), do: "Not found"
   defp error_text(:invalid_lrc), do: "That didn't look like timed .lrc lyrics"
