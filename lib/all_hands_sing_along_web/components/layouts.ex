@@ -44,8 +44,11 @@ defmodule AllHandsSingAlongWeb.Layouts do
       ></canvas>
       <div class="relative z-10">
         <header class="flex items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
-          <a href="/" class="flex w-fit items-center gap-3">
-            <img src={~p"/images/logo.svg"} width="32" alt="" class="opacity-90" />
+          <a href="/" class="group flex w-fit items-center gap-3">
+            <.icon
+              name="hero-microphone"
+              class="size-8 text-amber-200/90 transition-transform duration-200 group-hover:scale-105"
+            />
             <span class="text-sm font-medium tracking-[0.18em] uppercase text-white/80">
               All Hands Sing Song
             </span>
