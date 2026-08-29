@@ -534,6 +534,35 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     assert render(view) =~ room.code
   end
 
+  test "host is told to run mix stems.worker when Demucs is not local", %{conn: conn} do
+    Application.put_env(:all_hands_sing_along, :stem_available, false)
+    room = Fixtures.room_fixture()
+
+    song =
+      Fixtures.song_fixture(room, %{
+        title: "Need Mac",
+        original_path: AllHandsSingAlong.Catalog.fixture_path(),
+        instrumental_path: nil,
+        stem_status: :queued
+      })
+
+    entry =
+      Fixtures.entry_fixture(room, %{singer_name: "Sam", song_title: "Need Mac", song: song})
+
+    {:ok, host_view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
+    assert has_element?(host_view, "#stem-worker-hint")
+    assert has_element?(host_view, "#stem-progress-#{entry.id}")
+    assert render(host_view) =~ "Waiting for your Mac to remove vocals"
+
+    guest_conn =
+      conn
+      |> recycle()
+      |> guest_conn(room, "Sam")
+
+    {:ok, guest_view, _html} = live(guest_conn, ~p"/rooms/#{room.code}")
+    refute has_element?(guest_view, "#stem-worker-hint")
+  end
+
   defp host_conn(conn, room) do
     init_test_session(conn, %{
       "display_name" => "Ada",

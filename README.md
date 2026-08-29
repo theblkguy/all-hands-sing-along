@@ -6,7 +6,7 @@ One person **hosts on a Mac**. Everyone else opens the same room on their phone 
 
 This guide is for hosting on macOS. You do not need Postgres — the app uses a local SQLite file.
 
-To put the app on the public internet instead, see [Deploy on Fly.io](#deploy-on-flyio). Cloud deploys skip vocal isolation (Demucs is too heavy for a cheap VM); guests attach an instrumental or use the original mix.
+To put the app on the public internet instead, see [Deploy on Fly.io](#deploy-on-flyio). The Fly machine stays small (no Demucs). For automatic vocal isolation on the hosted site, run `mix stems.worker` on your Mac.
 
 ## What you need
 
@@ -198,7 +198,7 @@ To stop the server: focus the Terminal window and press `Ctrl+C`.
 
 Phoenix LiveView needs a persistent VM, so this app is not a fit for Vercel. [Fly.io](https://fly.io) is the cheapest typical host: one small machine plus a SQLite volume, about **$4–8/month**.
 
-Cloud machines do **not** include Demucs. Songs stay playable if someone attaches an instrumental or uses **Use original anyway**. For automatic vocal isolation, keep hosting on the Mac.
+Cloud machines do **not** run Demucs. Songs stay playable if someone attaches an instrumental or uses **Use original anyway**. To strip vocals automatically, leave the cheap Fly app as-is and run Demucs on your Mac with `mix stems.worker` (below).
 
 ### 1. Install the Fly CLI and log in
 
@@ -236,7 +236,32 @@ Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room
 
 If you use a custom domain, set `PHX_HOST` to that domain in `fly.toml` (or `fly secrets` / `[env]`) so LiveView WebSockets pass the origin check.
 
-### 4. Useful commands
+### 4. Strip vocals from your Mac
+
+The hosted site queues isolation jobs. Your computer downloads each song, runs Demucs, and uploads the instrumental. The Mac must stay awake with this process running.
+
+One-time token (save the printed value):
+
+```sh
+TOKEN="$(mix phx.gen.secret)"
+echo "$TOKEN"
+fly secrets set STEM_WORKER_TOKEN="$TOKEN"
+```
+
+Then deploy so Fly has the new worker routes (`fly deploy`).
+
+Before karaoke, in the project folder on your Mac (with `.venv` and Demucs already installed):
+
+```sh
+export STEM_WORKER_TOKEN="the-token-from-above"
+mix stems.worker
+```
+
+Leave that Terminal open. Songs on the website will show **Waiting for your Mac** until this process picks them up. Isolation still takes a few minutes per song.
+
+Optional: `STEM_SITE_URL=https://your-app.fly.dev mix stems.worker` if the app name is not `all-hands-sing-along`.
+
+### 5. Useful commands
 
 ```sh
 fly status
@@ -254,6 +279,7 @@ To stop spending money: `fly apps destroy <app-name>` (this deletes the volume t
 | `mix setup` fails compiling | `xcode-select --install`, then retry |
 | `which python3` is `/usr/bin/python3` | Create the venv with `/opt/homebrew/bin/python3` (or `/usr/local/bin/python3` on Intel) |
 | Queue says isolation isn’t installed | Recreate `.venv`, `pip install demucs numpy`, restart `mix phx.server` |
+| Hosted site waits on your Mac | Run `mix stems.worker` with `STEM_WORKER_TOKEN`; Mac must stay awake |
 | Guests cannot open the URL | Same Wi-Fi, `ipconfig getifaddr en0`, allow firewall, use `http://IP:4000` |
 | Guests see a different room / not host | Only the Mac that clicked **Create room** is host. Guests must **Join** with the code |
 | Lyrics never appear | Need internet to lrclib.net, or paste an `.lrc` |
@@ -263,6 +289,7 @@ To stop spending money: `fly apps destroy <app-name>` (this deletes the volume t
 
 ```sh
 mix phx.server              # or: iex -S mix phx.server
+mix stems.worker            # Demucs on this Mac for the hosted Fly site
 mix test
 mix precommit               # compile, format, test
 ```

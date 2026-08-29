@@ -27,6 +27,10 @@ if uploads_path = System.get_env("UPLOADS_PATH") do
   config :all_hands_sing_along, :uploads_path, uploads_path
 end
 
+if token = System.get_env("STEM_WORKER_TOKEN") do
+  config :all_hands_sing_along, :stem_worker_token, token
+end
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||

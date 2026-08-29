@@ -6,6 +6,12 @@ defmodule AllHandsSingAlong.Catalog.DemucsStemAdapter do
 
   require Logger
 
+  @impl true
+  def available? do
+    python = python_executable()
+    is_binary(python) and demucs_importable?(python)
+  end
+
   def isolate(input_path) when is_binary(input_path), do: isolate(input_path, nil)
 
   @impl true

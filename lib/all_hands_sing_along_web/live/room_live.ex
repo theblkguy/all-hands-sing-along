@@ -37,6 +37,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         |> assign(:lyric_preview, nil)
         |> assign(:changing_lyrics_id, nil)
         |> assign(:attaching_audio_id, nil)
+        |> assign(:stem_local?, AllHandsSingAlong.Catalog.StemSeparator.local_available?())
         |> allow_upload(:audio, accept: :any, max_entries: 1, max_file_size: 32_000_000)
         |> allow_upload(:lrc, accept: :any, max_entries: 1, max_file_size: 200_000)
         |> allow_upload(:instrumental, accept: :any, max_entries: 1, max_file_size: 32_000_000)
@@ -468,6 +469,20 @@ defmodule AllHandsSingAlongWeb.RoomLive do
             Use headphones so the backing track does not leak into Zoom.
           </span>
           <span class="hidden sm:inline">Headphones on. Keep the mix out of Zoom.</span>
+        </div>
+
+        <div
+          :if={@host? and not @stem_local?}
+          id="stem-worker-hint"
+          class="glass-panel rounded-2xl px-4 py-3 text-sm text-amber-100/85"
+        >
+          <p class="font-medium text-amber-100">Vocal isolation runs on your Mac</p>
+          <p class="mt-1 text-white/70">
+            Keep this Terminal command running while people add songs:
+            <code class="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[13px] text-amber-50">
+              mix stems.worker
+            </code>
+          </p>
         </div>
 
         <div class="flex flex-wrap items-end justify-between gap-4">
@@ -1376,7 +1391,8 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   defp playback_mode_label(%{mode: :singing}), do: "Singer (backing track)"
 
-  defp stem_progress_label(%{stem_status: :queued}), do: "Queued"
+  defp stem_progress_label(%{stem_status: :queued}),
+    do: "Waiting for your Mac to remove vocals…"
 
   defp stem_progress_label(%{stem_status: :running, stem_progress: pct}) when is_integer(pct) do
     "Removing vocals #{pct}%"

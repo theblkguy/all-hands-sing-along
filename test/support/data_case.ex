@@ -31,6 +31,7 @@ defmodule AllHandsSingAlong.DataCase do
     AllHandsSingAlong.DataCase.setup_sandbox(tags)
     AllHandsSingAlong.DataCase.stub_lyrics_not_found()
     Application.put_env(:all_hands_sing_along, :stem_stub, :ok)
+    Application.put_env(:all_hands_sing_along, :stem_available, true)
     :ok
   end
 

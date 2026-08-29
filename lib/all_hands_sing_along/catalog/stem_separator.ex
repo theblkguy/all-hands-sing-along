@@ -4,6 +4,7 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   One-at-a-time vocal isolation jobs. Phoenix never runs Demucs in a LiveView.
   """
   use GenServer
+  import Ecto.Query
 
   alias AllHandsSingAlong.Catalog
   alias AllHandsSingAlong.Catalog.Song
@@ -15,11 +16,18 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @spec local_available?() :: boolean()
+  def local_available?, do: adapter_available?()
+
   @spec enqueue(integer()) :: :ok | {:error, term()}
   def enqueue(song_id) when is_integer(song_id) do
     cond do
       not enabled?() ->
         mark_failed(song_id, :not_installed)
+
+      not adapter_available?() ->
+        mark_status_id(song_id, :queued, nil)
+        :ok
 
       sync?() ->
         finish_job(song_id, perform_job(song_id))
@@ -41,6 +49,85 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
 
   @spec retry(integer()) :: :ok | {:error, term()}
   def retry(song_id) when is_integer(song_id), do: enqueue(song_id)
+
+  @spec claim_remote_job() :: {:ok, Song.t()} | :empty
+  def claim_remote_job do
+    case next_queued_song() do
+      nil ->
+        :empty
+
+      song ->
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+        {count, _} =
+          Song
+          |> where([s], s.id == ^song.id and s.stem_status == :queued)
+          |> Repo.update_all(
+            set: [
+              stem_status: :running,
+              stem_error: nil,
+              stem_progress: 0,
+              updated_at: now
+            ]
+          )
+
+        if count == 1 do
+          claimed = Repo.get!(Song, song.id)
+          Queue.broadcast_queue(claimed.room_id)
+          {:ok, claimed}
+        else
+          claim_remote_job()
+        end
+    end
+  end
+
+  @spec report_remote_progress(integer(), integer()) :: :ok | {:error, :not_found}
+  def report_remote_progress(song_id, pct) when is_integer(song_id) and is_integer(pct) do
+    case Repo.get(Song, song_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Song{stem_status: :running} = song ->
+        report_progress(song, pct)
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  @spec complete_remote_job(integer(), String.t(), String.t()) ::
+          :ok | {:error, term()}
+  def complete_remote_job(song_id, source_path, client_name)
+      when is_integer(song_id) and is_binary(source_path) and is_binary(client_name) do
+    case Repo.get(Song, song_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Song{stem_status: status} = song when status != :running ->
+        if Catalog.playable?(song), do: :ok, else: {:error, :not_running}
+
+      %Song{} = song ->
+        with {:ok, url} <- Uploads.store_audio!(source_path, client_name) do
+          finish_job(song.id, {:ok, url})
+        end
+    end
+  end
+
+  @spec fail_remote_job(integer(), term()) :: :ok | {:error, :not_found}
+  def fail_remote_job(song_id, reason) when is_integer(song_id) do
+    case Repo.get(Song, song_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Song{stem_status: :running} ->
+        finish_job(song_id, {:error, reason})
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
 
   @impl true
   def init(_opts) do
@@ -283,6 +370,20 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   defp error_message(_), do: "Couldn't remove vocals"
 
   defp reason_to_error(_), do: :stem_failed
+
+  defp next_queued_song do
+    Song
+    |> where([s], s.stem_status == :queued)
+    |> where([s], not is_nil(s.original_path) and s.original_path != "")
+    |> where([s], is_nil(s.instrumental_path) or s.instrumental_path == "")
+    |> order_by([s], asc: s.id)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp adapter_available? do
+    adapter().available?()
+  end
 
   defp adapter do
     Keyword.get(config(), :adapter, AllHandsSingAlong.Catalog.DemucsStemAdapter)
