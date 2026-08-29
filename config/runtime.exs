@@ -23,21 +23,8 @@ end
 config :all_hands_sing_along, AllHandsSingAlongWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
-if config_env() == :dev do
-  # Reload browser tabs when matching files change.
-  config :all_hands_sing_along, AllHandsSingAlongWeb.Endpoint,
-    live_reload: [
-      web_console_logger: true,
-      patterns: [
-        # Static assets, except user uploads
-        ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
-        # Gettext translations
-        ~r"priv/gettext/.*\.po$"E,
-        # Router, Controllers, LiveViews and LiveComponents
-        ~r"lib/all_hands_sing_along_web/router\.ex$"E,
-        ~r"lib/all_hands_sing_along_web/(controllers|live|components)/.*\.(ex|heex)$"E
-      ]
-    ]
+if uploads_path = System.get_env("UPLOADS_PATH") do
+  config :all_hands_sing_along, :uploads_path, uploads_path
 end
 
 if config_env() == :prod do
@@ -51,6 +38,11 @@ if config_env() == :prod do
   config :all_hands_sing_along, AllHandsSingAlong.Repo,
     database: database_path,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+
+  uploads_path =
+    System.get_env("UPLOADS_PATH") || Path.join(Path.dirname(database_path), "uploads")
+
+  config :all_hands_sing_along, :uploads_path, uploads_path
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
@@ -70,6 +62,7 @@ if config_env() == :prod do
 
   config :all_hands_sing_along, AllHandsSingAlongWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
+    check_origin: ["https://#{host}"],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.

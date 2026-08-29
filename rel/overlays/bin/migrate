@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+exec ./all_hands_sing_along eval AllHandsSingAlong.Release.migrate

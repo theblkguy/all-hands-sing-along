@@ -15,7 +15,10 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, host_view, host_html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     assert host_html =~ "Host"
     assert has_element?(host_view, "#start-singer")
-    assert has_element?(host_view, "button", "Start singer")
+    assert has_element?(host_view, "#pause-song")
+    assert has_element?(host_view, "#skip-song")
+    assert has_element?(host_view, "#lyric-line")
+    assert has_element?(host_view, "#disco-wash")
 
     guest_conn =
       conn
@@ -24,8 +27,8 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, guest_view, guest_html} = live(guest_conn, ~p"/rooms/#{room.code}")
     refute has_element?(guest_view, "#start-singer")
-    refute has_element?(guest_view, "button", "Start singer")
-    refute has_element?(guest_view, "button", "Skip")
+    refute has_element?(guest_view, "#pause-song")
+    refute has_element?(guest_view, "#skip-song")
     assert guest_html =~ "Sam"
   end
 
@@ -42,7 +45,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     view |> element("#start-singer") |> render_click()
     assert_push_event(view, "player-sync", %{playing: true})
 
-    view |> element("button", "Pause") |> render_click()
+    view |> element("#pause-song") |> render_click()
     assert_push_event(view, "player-sync", %{playing: false})
   end
 

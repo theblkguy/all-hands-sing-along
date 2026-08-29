@@ -1,10 +1,12 @@
-# AllHandsSingAlong
+# All Hands Sing Song
 
 Karaoke companion for all-hands: Zoom is for faces, this app syncs a backing track, timed lyrics, and a singer queue.
 
 One person **hosts on a Mac**. Everyone else opens the same room on their phone or laptop so the song and lyrics stay in sync. Stay on Zoom for faces. Use headphones so the backing track does not leak into the call.
 
 This guide is for hosting on macOS. You do not need Postgres — the app uses a local SQLite file.
+
+To put the app on the public internet instead, see [Deploy on Fly.io](#deploy-on-flyio). Cloud deploys skip vocal isolation (Demucs is too heavy for a cheap VM); guests attach an instrumental or use the original mix.
 
 ## What you need
 
@@ -191,6 +193,58 @@ mix phx.server
 You do not need `mix setup` or the Demucs install again unless you deleted the folder or `.venv`.
 
 To stop the server: focus the Terminal window and press `Ctrl+C`.
+
+## Deploy on Fly.io
+
+Phoenix LiveView needs a persistent VM, so this app is not a fit for Vercel. [Fly.io](https://fly.io) is the cheapest typical host: one small machine plus a SQLite volume, about **$4–8/month**.
+
+Cloud machines do **not** include Demucs. Songs stay playable if someone attaches an instrumental or uses **Use original anyway**. For automatic vocal isolation, keep hosting on the Mac.
+
+### 1. Install the Fly CLI and log in
+
+```sh
+brew install flyctl
+fly auth login
+```
+
+### 2. Create the app and volume
+
+`fly.toml` ships with app name `all-hands-sing-along` and region `iad`. If the name is taken, pick another:
+
+```sh
+fly apps create your-unique-name
+```
+
+Then set `app` and `PHX_HOST` (e.g. `your-unique-name.fly.dev`) in `fly.toml`. Create a 3 GB volume in the same region:
+
+```sh
+fly volumes create data --size 3 --region iad --app your-unique-name
+```
+
+Skip `--app` if you kept the default name.
+
+### 3. Set the secret and deploy
+
+```sh
+fly secrets set SECRET_KEY_BASE="$(mix phx.gen.secret)"
+fly deploy
+```
+
+The image is a Phoenix release (Elixir + SQLite). It does not install Python, Demucs, or ffmpeg.
+
+Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room code. The machine auto-stops when idle and starts on the next visit (a few seconds of cold start). During a session, LiveView connections keep it running.
+
+If you use a custom domain, set `PHX_HOST` to that domain in `fly.toml` (or `fly secrets` / `[env]`) so LiveView WebSockets pass the origin check.
+
+### 4. Useful commands
+
+```sh
+fly status
+fly logs
+fly ssh console
+```
+
+To stop spending money: `fly apps destroy <app-name>` (this deletes the volume too).
 
 ## Troubleshooting
 

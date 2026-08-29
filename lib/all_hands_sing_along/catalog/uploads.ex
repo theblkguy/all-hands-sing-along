@@ -1,14 +1,20 @@
 # lib/all_hands_sing_along/catalog/uploads.ex
 defmodule AllHandsSingAlong.Catalog.Uploads do
   @moduledoc """
-  Persist LiveView uploads under priv/static/uploads.
+  Persist LiveView uploads under the configured uploads directory.
+
+  Defaults to `priv/static/uploads`. Set `:uploads_path` (or `UPLOADS_PATH`)
+  so production can store files on a persistent volume.
   """
 
   @audio_exts MapSet.new([".mp3", ".wav", ".m4a", ".ogg"])
 
   @spec dir() :: String.t()
   def dir do
-    Path.join([:code.priv_dir(:all_hands_sing_along), "static", "uploads"])
+    case Application.get_env(:all_hands_sing_along, :uploads_path) do
+      path when is_binary(path) and path != "" -> path
+      _ -> Path.join([:code.priv_dir(:all_hands_sing_along), "static", "uploads"])
+    end
   end
 
   @spec ensure_dir!() :: :ok

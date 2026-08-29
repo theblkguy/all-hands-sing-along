@@ -6,6 +6,7 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
 
   test "renders create and join forms", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/")
+    assert html =~ "All Hands Sing Song"
     assert html =~ "Host a room"
     assert html =~ "Join a room"
     assert html =~ "Zoom companion"

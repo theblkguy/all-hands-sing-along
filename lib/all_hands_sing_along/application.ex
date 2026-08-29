@@ -7,6 +7,8 @@ defmodule AllHandsSingAlong.Application do
 
   @impl true
   def start(_type, _args) do
+    AllHandsSingAlong.Catalog.Uploads.ensure_dir!()
+
     children = [
       AllHandsSingAlongWeb.Telemetry,
       AllHandsSingAlong.Repo,

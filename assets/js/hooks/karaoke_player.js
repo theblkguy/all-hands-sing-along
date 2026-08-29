@@ -1,7 +1,11 @@
+import {createLyricRoll} from "../lyric_roll"
+
 const KaraokePlayer = {
   mounted() {
     this.audio = this.el.querySelector("audio")
     this.lyricLine = this.el.querySelector("#lyric-line")
+    this.outgoingLine = this.el.querySelector("#lyric-line-outgoing")
+    this.roll = createLyricRoll(this.lyricLine, this.outgoingLine)
     this.lyrics = []
     this.sync = {playing: false, position_ms: 0, server_time_ms: 0, offset_ms: 0}
     this.raf = null
@@ -131,12 +135,12 @@ const KaraokePlayer = {
   },
 
   renderLyrics(positionMs) {
-    if (!this.lyricLine) return
+    if (!this.roll) return
     let current = {text: "", time_ms: 0}
     for (const line of this.lyrics) {
       if (line.time_ms <= positionMs) current = line
     }
-    this.lyricLine.textContent = current.text || ""
+    this.roll.show(current.text || "")
   }
 }
 

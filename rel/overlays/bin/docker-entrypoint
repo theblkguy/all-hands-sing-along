@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+
+data_dir="$(dirname "${DATABASE_PATH:-/data/all_hands_sing_along.db}")"
+uploads_dir="${UPLOADS_PATH:-${data_dir}/uploads}"
+
+mkdir -p "$data_dir" "$uploads_dir"
+
+if [ "$(id -u)" = "0" ]; then
+  chown -R nobody:nogroup "$data_dir" "$uploads_dir"
+  exec setpriv --reuid=nobody --regid=nogroup --init-groups ./server
+fi
+
+exec ./server
