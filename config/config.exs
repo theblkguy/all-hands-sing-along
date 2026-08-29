@@ -71,6 +71,7 @@ config :all_hands_sing_along, AllHandsSingAlong.Catalog.Lyrics,
 config :all_hands_sing_along, AllHandsSingAlong.Catalog.StemSeparator,
   adapter: AllHandsSingAlong.Catalog.DemucsStemAdapter,
   python: "python3",
+  vocal_mix: 0.12,
   enabled: true,
   sync: false
 

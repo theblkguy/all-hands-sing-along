@@ -30,6 +30,74 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     refute has_element?(guest_view, "#pause-song")
     refute has_element?(guest_view, "#skip-song")
     assert guest_html =~ "Sam"
+    assert has_element?(guest_view, "#guest-playback-hint")
+    assert has_element?(guest_view, "#queue-empty")
+    assert has_element?(guest_view, "#open-onboarding")
+    assert has_element?(guest_view, "#copy-room-code")
+  end
+
+  test "host can open and dismiss the onboarding overlay", %{conn: conn} do
+    room = Fixtures.room_fixture()
+    {:ok, view, html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
+
+    refute has_element?(view, "#onboarding-overlay")
+    assert has_element?(view, "#open-onboarding")
+    assert has_element?(view, "#queue-empty")
+    assert has_element?(view, "#start-singer")
+    assert has_element?(view, "#lyrics-later")
+    assert has_element?(view, "#copy-room-code")
+    assert html =~ "Start singer"
+    assert html =~ "Later"
+
+    view |> element("#open-onboarding") |> render_click()
+    assert has_element?(view, "#onboarding-overlay")
+    assert has_element?(view, "#onboarding-title", "You're hosting")
+    overlay = view |> element("#onboarding-overlay") |> render()
+    assert overlay =~ "Start singer"
+    assert overlay =~ "clearing cookies"
+    assert overlay =~ room.code
+    refute overlay =~ "does not drive the room clock"
+    refute has_element?(view, "#onboarding-worker-note")
+
+    view |> element("#dismiss-onboarding") |> render_click()
+    refute has_element?(view, "#onboarding-overlay")
+  end
+
+  test "guest onboarding overlay explains the queue, not host controls", %{conn: conn} do
+    room = Fixtures.room_fixture()
+    {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
+
+    refute has_element?(view, "#onboarding-overlay")
+    refute has_element?(view, "#start-singer")
+    assert has_element?(view, "#guest-playback-hint")
+    assert has_element?(view, "#add-song-hint")
+
+    view |> element("#open-onboarding") |> render_click()
+    assert has_element?(view, "#onboarding-overlay")
+    assert has_element?(view, "#onboarding-title", "You're in the room")
+    overlay = view |> element("#onboarding-overlay") |> render()
+    assert overlay =~ "does not drive the room clock"
+    assert overlay =~ "In the room"
+    refute overlay =~ "You&#39;re hosting"
+    refute overlay =~ "clearing cookies"
+    refute overlay =~ "Start singer"
+    refute overlay =~ "./script/worker"
+    refute has_element?(view, "#onboarding-worker-note")
+
+    view |> element("#dismiss-onboarding") |> render_click()
+    refute has_element?(view, "#onboarding-overlay")
+  end
+
+  test "host onboarding mentions the Mac worker when Demucs is not local", %{conn: conn} do
+    previous = Application.get_env(:all_hands_sing_along, :stem_available, true)
+    Application.put_env(:all_hands_sing_along, :stem_available, false)
+    on_exit(fn -> Application.put_env(:all_hands_sing_along, :stem_available, previous) end)
+
+    room = Fixtures.room_fixture()
+    {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
+    view |> element("#open-onboarding") |> render_click()
+    assert has_element?(view, "#onboarding-worker-note")
+    assert render(view) =~ "Vocal isolation runs on your Mac"
   end
 
   test "host play starts the fixture track", %{conn: conn} do

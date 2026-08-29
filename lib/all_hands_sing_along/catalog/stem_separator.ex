@@ -369,6 +369,9 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   defp error_message(:missing_numpy),
     do: "Vocal isolation is missing NumPy. Run .venv/bin/python -m pip install numpy"
 
+  defp error_message(:missing_ffmpeg),
+    do: "Vocal isolation needs ffmpeg to mix a quiet guide vocal"
+
   defp error_message(:missing_audio), do: "Original audio is missing"
   defp error_message(_), do: "Couldn't remove vocals"
 

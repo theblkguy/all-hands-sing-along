@@ -49,3 +49,6 @@ npm-debug.log
 # Local worker secret — never commit this
 /token.txt
 /token.tx
+
+# Local talk notes
+/ARCHITECTURE.md

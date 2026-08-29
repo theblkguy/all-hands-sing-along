@@ -11,8 +11,20 @@ To put the app on the public internet, see [Deploy on Fly.io](#deploy-on-flyio).
 ## What you need
 
 - A Mac
+- **Homebrew** (step 1). `./script/setup` will not run without it.
 - About 15–30 minutes the first time (mostly downloads)
 - An internet connection (lyrics lookup and the first vocal-isolation model)
+
+Run `./script/setup` once after you clone. It installs everything the other scripts need:
+
+| You need | Used by | Why |
+| --- | --- | --- |
+| **Elixir** (`mix`) | `./script/server`, `./script/worker` | Phoenix app and the isolation worker |
+| **ffmpeg** | `./script/worker`, local isolation | Demucs reads the upload; ffmpeg mixes a quiet guide vocal onto the instrumental |
+| **Homebrew Python** + `.venv` with **Demucs** and **NumPy** | `./script/worker`, local isolation | Strips vocals. Do not use macOS `/usr/bin/python3` — it has no `pip` |
+| **git** | clone / setup | Installed by setup if missing |
+
+If you skip setup, `./script/worker` exits with “Demucs is not installed,” and songs fail isolation if ffmpeg is missing.
 
 Typical all-hands flow:
 
@@ -41,7 +53,7 @@ cd all_hands_sing_along
 ./script/setup
 ```
 
-That installs Elixir, ffmpeg, Python, Demucs, and the Phoenix app. Safe to re-run.
+That installs Elixir, ffmpeg, Homebrew Python, Demucs, NumPy, git, and the Phoenix app. Safe to re-run. After Elixir is first installed, open a **new** Terminal so `mix` is on your PATH, then re-run `./script/setup` if it asked you to.
 
 ## 3. Start
 
@@ -51,7 +63,7 @@ That installs Elixir, ffmpeg, Python, Demucs, and the Phoenix app. Safe to re-ru
 ./script/worker --room ABC123 --token YOUR_HOST_TOKEN
 ```
 
-Leave that window open. Another host on the same site uses **their** command; workers do not share a queue. Guests never need a token. You can still **Attach instrumental** or **Use original anyway**. Isolation can take several minutes; the first song also downloads the Demucs model.
+Run this from the project folder **after** `./script/setup`. Leave that window open. Another host on the same site uses **their** command; workers do not share a queue. Guests never need a token. You can still **Attach instrumental** or **Use original anyway**. Isolation can take several minutes; the first song also downloads the Demucs model.
 
 **Local Wi-Fi** (this Mac is the karaoke server):
 
@@ -59,7 +71,7 @@ Leave that window open. Another host on the same site uses **their** command; wo
 ./script/server
 ```
 
-On this Mac, open [http://localhost:4000](http://localhost:4000). Leave the Terminal open.
+Needs Elixir from `./script/setup`. On this Mac, open [http://localhost:4000](http://localhost:4000). Leave the Terminal open.
 
 Find this Mac’s Wi-Fi address:
 
@@ -178,9 +190,10 @@ To stop spending money: `fly apps destroy <app-name>` (this deletes the volume t
 
 | Problem | What to try |
 | --- | --- |
-| `elixir: command not found` | `./script/setup`, then open a new Terminal |
+| `elixir: command not found` / `mix was not found` | `./script/setup`, then open a new Terminal so Elixir is on your PATH |
 | `mix setup` fails compiling | `xcode-select --install`, then `./script/setup` |
-| Demucs missing | `./script/setup` (uses Homebrew Python, not `/usr/bin/python3`) |
+| Demucs missing / worker says run setup | `./script/setup` (Homebrew Python into `.venv`, not `/usr/bin/python3`) |
+| `ffmpeg` missing / “needs ffmpeg to mix a quiet guide vocal” | `brew install ffmpeg`, or re-run `./script/setup` |
 | Hosted site waits on your Mac | Run the command on the room page; Mac must stay awake |
 | Wrong room’s songs processing | Each host must use **their** `--room` and `--token` |
 | Guests cannot open the URL | Same Wi-Fi, `ipconfig getifaddr en0`, allow firewall, use `http://IP:4000` |

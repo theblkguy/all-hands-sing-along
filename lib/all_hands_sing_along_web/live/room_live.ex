@@ -11,6 +11,8 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   alias AllHandsSingAlong.Rooms
   alias AllHandsSingAlongWeb.Presence
 
+  import AllHandsSingAlongWeb.Onboarding, only: [gate: 1, copy_code: 1]
+
   @impl true
   def mount(%{"code" => code}, session, socket) do
     display_name = session["display_name"]
@@ -39,6 +41,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         |> assign(:attaching_audio_id, nil)
         |> assign(:stem_local?, AllHandsSingAlong.Catalog.StemSeparator.local_available?())
         |> assign(:host_token, if(host?, do: host_token, else: nil))
+        |> assign(:show_onboarding?, false)
         |> allow_upload(:audio, accept: :any, max_entries: 1, max_file_size: 32_000_000)
         |> allow_upload(:lrc, accept: :any, max_entries: 1, max_file_size: 200_000)
         |> allow_upload(:instrumental, accept: :any, max_entries: 1, max_file_size: 32_000_000)
@@ -80,6 +83,14 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   @impl true
+  def handle_event("open_onboarding", _params, socket) do
+    {:noreply, assign(socket, :show_onboarding?, true)}
+  end
+
+  def handle_event("dismiss_onboarding", _params, socket) do
+    {:noreply, assign(socket, :show_onboarding?, false)}
+  end
+
   def handle_event("play", _params, socket) do
     if socket.assigns.host? do
       socket = close_lyric_preview(socket)
@@ -460,6 +471,12 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
+      <.gate
+        host?={@host?}
+        stem_local?={@stem_local?}
+        show?={@show_onboarding?}
+        room_code={@room.code}
+      />
       <div class="space-y-8">
         <div
           class="glass-panel flex items-center gap-3 rounded-full px-4 py-2 text-sm text-amber-100/80"
@@ -491,21 +508,34 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p class="text-xs font-medium uppercase tracking-[0.28em] text-white/45">Room code</p>
-            <h1 class="mt-1 font-mono text-4xl font-semibold tracking-[0.2em] text-white">
-              {@room.code}
-            </h1>
-            <p class="mt-2 text-sm text-white/65">
-              You are {@display_name}
-              <span
-                :if={@host?}
-                class="ml-2 rounded-full border border-amber-200/30 bg-amber-200/15 px-2 py-0.5 text-[11px] uppercase tracking-wider text-amber-100"
+            <div class="mt-1 flex flex-wrap items-center gap-3">
+              <h1 class="font-mono text-4xl font-semibold tracking-[0.2em] text-white">
+                {@room.code}
+              </h1>
+              <.copy_code code={@room.code} />
+            </div>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <p class="text-sm text-white/65">
+                You are {@display_name}
+                <span
+                  :if={@host?}
+                  class="ml-2 rounded-full border border-amber-200/30 bg-amber-200/15 px-2 py-0.5 text-[11px] uppercase tracking-wider text-amber-100"
+                >
+                  Host
+                </span>
+              </p>
+              <button
+                id="open-onboarding"
+                type="button"
+                phx-click="open_onboarding"
+                class="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-wider text-white/80 transition hover:border-amber-200/40 hover:bg-white/15 hover:text-amber-100"
               >
-                Host
-              </span>
-            </p>
+                <.icon name="hero-question-mark-circle" class="size-4" /> Help
+              </button>
+            </div>
           </div>
           <div :if={@host?} class="flex flex-col items-end gap-2">
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center justify-end gap-2">
               <.icon_button
                 id="start-singer"
                 icon="hero-play"
@@ -535,6 +565,13 @@ defmodule AllHandsSingAlongWeb.RoomLive do
             {playback_heading(@playback)}
           </p>
           <p
+            :if={not @host? and playback_empty?(@playback)}
+            id="guest-playback-hint"
+            class="text-sm text-white/55"
+          >
+            The host starts the singer when a song is Ready.
+          </p>
+          <p
             :if={@playback && @playback.singer_name}
             id="now-playing-singer"
             class="text-white/60"
@@ -561,6 +598,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               id="lyrics-later"
               icon="hero-minus"
               label="Lyrics later"
+              visible_label="Later"
               phx-click="nudge_lyrics"
               phx-value-delta="-100"
             />
@@ -568,6 +606,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               id="lyrics-earlier"
               icon="hero-plus"
               label="Lyrics earlier"
+              visible_label="Earlier"
               phx-click="nudge_lyrics"
               phx-value-delta="100"
             />
@@ -624,6 +663,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               id="preview-lyrics-later"
               icon="hero-minus"
               label="Lyrics later"
+              visible_label="Later"
               phx-click="nudge_preview"
               phx-value-delta="-100"
             />
@@ -631,6 +671,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               id="preview-lyrics-earlier"
               icon="hero-plus"
               label="Lyrics earlier"
+              visible_label="Earlier"
               phx-click="nudge_preview"
               phx-value-delta="100"
             />
@@ -652,6 +693,9 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               class="glass-panel space-y-4 rounded-3xl p-6"
             >
               <h3 class="font-medium text-white">Add a song</h3>
+              <p id="add-song-hint" class="text-sm leading-relaxed text-white/55">
+                Lyrics are fetched automatically. You can upload audio now or after you join the queue.
+              </p>
               <.input
                 id="song-title"
                 name="song_title"
@@ -700,6 +744,12 @@ defmodule AllHandsSingAlongWeb.RoomLive do
             </.form>
 
             <ul id="queue" phx-update="stream" class="space-y-2">
+              <li
+                id="queue-empty"
+                class="hidden only:block glass-panel rounded-2xl px-5 py-8 text-center text-sm text-white/55"
+              >
+                No singers yet. Add a song below.
+              </li>
               <li
                 :for={{dom_id, entry} <- @streams.queue}
                 id={dom_id}
@@ -935,6 +985,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   attr :id, :string, required: true
   attr :icon, :string, required: true
   attr :label, :string, required: true
+  attr :visible_label, :string, default: nil
   attr :variant, :string, default: nil
   attr :class, :any, default: nil
 
@@ -943,7 +994,9 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   defp icon_button(assigns) do
     assigns =
-      assign(assigns, :computed_class, assigns.class || icon_button_class(assigns.variant))
+      assigns
+      |> assign(:computed_class, assigns.class || icon_button_class(assigns.variant))
+      |> assign(:shown_label, assigns.visible_label || assigns.label)
 
     ~H"""
     <.button
@@ -954,17 +1007,18 @@ defmodule AllHandsSingAlongWeb.RoomLive do
       title={@label}
       {@rest}
     >
-      <.icon name={@icon} class="size-5" />
+      <.icon name={@icon} class="size-5 shrink-0" />
+      <span>{@shown_label}</span>
     </.button>
     """
   end
 
   defp icon_button_class("primary") do
-    "inline-flex size-10 items-center justify-center rounded-full border border-amber-200/40 bg-amber-200 text-neutral-950 transition hover:bg-amber-100"
+    "inline-flex h-10 items-center justify-center gap-2 rounded-full border border-amber-200/40 bg-amber-200 px-4 text-sm font-medium text-neutral-950 transition hover:bg-amber-100"
   end
 
   defp icon_button_class(_) do
-    "inline-flex size-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:border-amber-200/40 hover:bg-white/15 hover:text-amber-100"
+    "inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 text-sm font-medium text-white transition hover:border-amber-200/40 hover:bg-white/15 hover:text-amber-100"
   end
 
   attr :entry, :map, required: true
@@ -1389,6 +1443,10 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   defp playback_heading(_), do: "Nothing yet — host can start the singer or demo track"
 
+  defp playback_empty?(nil), do: true
+  defp playback_empty?(%{title: title}) when is_binary(title) and title != "", do: false
+  defp playback_empty?(_), do: true
+
   defp playback_mode(%{mode: :singing}), do: :singing
   defp playback_mode(_), do: nil
 
@@ -1461,6 +1519,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   defp error_text(:missing_audio), do: "Attach audio before marking ready"
   defp error_text(:missing_lyrics), do: "Lyrics are still missing"
   defp error_text(:not_installed), do: "Vocal isolation isn’t installed on this machine"
+  defp error_text(:missing_ffmpeg), do: "Vocal isolation needs ffmpeg to mix a quiet guide vocal"
   defp error_text(:stem_failed), do: "Couldn't remove vocals"
   defp error_text(:not_ready), do: "Only ready songs can be reordered"
   defp error_text(:not_found), do: "Not found"
