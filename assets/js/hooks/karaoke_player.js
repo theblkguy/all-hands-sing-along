@@ -1,4 +1,5 @@
 import {createLyricRoll} from "../lyric_roll"
+import {createLyricTicker} from "../lyric_ticker"
 
 const KaraokePlayer = {
   mounted() {
@@ -6,11 +7,11 @@ const KaraokePlayer = {
     this.lyricLine = this.el.querySelector("#lyric-line")
     this.outgoingLine = this.el.querySelector("#lyric-line-outgoing")
     this.roll = createLyricRoll(this.lyricLine, this.outgoingLine)
+    this.ticker = createLyricTicker()
     this.lyrics = []
     this.sync = {playing: false, position_ms: 0, server_time_ms: 0, offset_ms: 0}
-    this.raf = null
 
-    this.tick = this.tick.bind(this)
+    this.tickContinue = () => this.sync.playing && !(this.audio && this.audio.paused)
     this.onAudioPause = this.onAudioPause.bind(this)
     this.onAudioPlay = this.onAudioPlay.bind(this)
 
@@ -23,7 +24,7 @@ const KaraokePlayer = {
   },
 
   destroyed() {
-    this.stopTick()
+    this.ticker.stop()
     if (this.audio) {
       this.audio.removeEventListener("pause", this.onAudioPause)
       this.audio.removeEventListener("play", this.onAudioPlay)
@@ -93,20 +94,17 @@ const KaraokePlayer = {
   },
 
   startTick() {
-    this.stopTick()
-    this.tick()
-  },
-
-  stopTick() {
-    if (this.raf) {
-      cancelAnimationFrame(this.raf)
-      this.raf = null
-    }
+    this.ticker.start(
+      this.tickContinue,
+      () => this.mediaPositionMs(),
+      this.roll,
+      () => this.lyrics
+    )
   },
 
   freezeLyrics() {
-    this.stopTick()
-    this.renderLyrics(this.mediaPositionMs())
+    this.ticker.stop()
+    this.ticker.render(this.roll, this.lyrics, this.mediaPositionMs())
   },
 
   mediaPositionMs() {
@@ -125,22 +123,6 @@ const KaraokePlayer = {
     const {position_ms, server_time_ms, offset_ms, playing} = this.sync
     if (!playing) return Math.max(0, position_ms + (offset_ms || 0))
     return Math.max(0, position_ms + (Date.now() - server_time_ms) + (offset_ms || 0))
-  },
-
-  tick() {
-    this.renderLyrics(this.mediaPositionMs())
-    if (this.sync.playing && !(this.audio && this.audio.paused)) {
-      this.raf = requestAnimationFrame(this.tick)
-    }
-  },
-
-  renderLyrics(positionMs) {
-    if (!this.roll) return
-    let current = {text: "", time_ms: 0}
-    for (const line of this.lyrics) {
-      if (line.time_ms <= positionMs) current = line
-    }
-    this.roll.show(current.text || "")
   }
 }
 

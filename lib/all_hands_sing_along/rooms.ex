@@ -147,18 +147,6 @@ defmodule AllHandsSingAlong.Rooms do
     end
   end
 
-  @spec mark_entry_preparing(Room.t(), String.t(), Entry.t()) ::
-          {:ok, Entry.t()} | {:error, atom() | Ecto.Changeset.t()}
-  def mark_entry_preparing(%Room{} = room, token, %Entry{} = entry) do
-    with :ok <- authorize_host(room, token),
-         true <- entry.room_id == room.id do
-      Queue.mark_status(entry, :preparing)
-    else
-      false -> {:error, :not_found}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   @spec move_ready_entry(Room.t(), String.t(), Entry.t(), :up | :down) ::
           {:ok, Entry.t()} | {:error, atom() | Ecto.Changeset.t()}
   def move_ready_entry(%Room{} = room, token, %Entry{} = entry, direction)

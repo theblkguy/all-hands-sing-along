@@ -27,12 +27,13 @@ import topbar from "../vendor/topbar"
 import KaraokePlayer from "./hooks/karaoke_player"
 import LyricPreview from "./hooks/lyric_preview"
 import DiscoWash from "./hooks/disco_wash"
+import ClipboardCopy from "./hooks/clipboard_copy"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, KaraokePlayer, LyricPreview, DiscoWash},
+  hooks: {...colocatedHooks, KaraokePlayer, LyricPreview, DiscoWash, ClipboardCopy},
 })
 
 // Show progress bar on live navigation and form submits

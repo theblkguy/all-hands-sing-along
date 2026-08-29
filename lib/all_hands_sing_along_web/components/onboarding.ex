@@ -42,41 +42,31 @@ defmodule AllHandsSingAlongWeb.Onboarding do
 
           <ol :if={@host?} class="mt-6 space-y-4">
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                1
-              </span>
+              <.step_item n={1} class="mt-0.5 size-6 text-xs" />
               <span>
                 Share room code <span class="font-mono tracking-wider text-white">{@room_code}</span>
                 and the site URL. Keep this browser tab open — clearing cookies drops host controls.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                2
-              </span>
+              <.step_item n={2} class="mt-0.5 size-6 text-xs" />
               <span>Headphones on. Zoom is for faces only.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                3
-              </span>
+              <.step_item n={3} class="mt-0.5 size-6 text-xs" />
               <span>
                 Wait until a song is <span class="text-white">Ready</span>
                 (instrumental + lyrics), then hit Start singer.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                4
-              </span>
+              <.step_item n={4} class="mt-0.5 size-6 text-xs" />
               <span>
                 Play, Pause, and Skip control everyone. Use Lyrics later / earlier if the line is off.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                5
-              </span>
+              <.step_item n={5} class="mt-0.5 size-6 text-xs" />
               <span>
                 If a song is stuck on Preparing: upload audio, search or paste lyrics, or Use original anyway.
               </span>
@@ -93,37 +83,27 @@ defmodule AllHandsSingAlongWeb.Onboarding do
 
           <ol :if={not @host?} class="mt-6 space-y-4">
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                1
-              </span>
+              <.step_item n={1} class="mt-0.5 size-6 text-xs" />
               <span>Headphones on. Stay on Zoom for faces.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                2
-              </span>
+              <.step_item n={2} class="mt-0.5 size-6 text-xs" />
               <span>
                 Add yourself to the queue with a title and artist. Audio is optional; lyrics usually fetch on their own.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                3
-              </span>
+              <.step_item n={3} class="mt-0.5 size-6 text-xs" />
               <span>
                 Wait until the song is <span class="text-white">Ready</span>. The host starts playback for everyone.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                4
-              </span>
+              <.step_item n={4} class="mt-0.5 size-6 text-xs" />
               <span>Don't scrub the audio bar. It does not drive the room clock.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
-              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-amber-200/30 bg-amber-200/10 text-xs font-medium text-amber-100">
-                5
-              </span>
+              <.step_item n={5} class="mt-0.5 size-6 text-xs" />
               <span>
                 <span class="text-white">In the room</span> is who is online, not singer order.
               </span>
@@ -195,70 +175,15 @@ defmodule AllHandsSingAlongWeb.Onboarding do
     <button
       id="copy-room-code"
       type="button"
-      phx-hook=".CopyRoomCode"
+      phx-hook="ClipboardCopy"
       phx-update="ignore"
-      data-code={@code}
-      class="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-white/80 transition hover:border-amber-200/40 hover:bg-white/15 hover:text-amber-100"
+      data-copy-button
+      data-copy-text={@code}
+      class={copy_button_class()}
     >
       <.icon name="hero-clipboard-document" class="size-4" />
-      <span id="copy-room-code-label">Copy code</span>
+      <span id="copy-room-code-label" data-copy-label>Copy code</span>
     </button>
-    <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyRoomCode">
-      export default {
-        mounted() {
-          this.el.addEventListener("click", async () => {
-            const code = this.el.dataset.code || ""
-            const label = this.el.querySelector("#copy-room-code-label")
-            const copied = await this.copyText(code)
-
-            if (copied) {
-              if (label) label.textContent = "Copied"
-              window.clearTimeout(this.resetTimer)
-              this.resetTimer = window.setTimeout(() => {
-                if (label) label.textContent = "Copy code"
-              }, 1600)
-              return
-            }
-
-            this.selectRoomCode()
-          })
-        },
-        destroyed() {
-          window.clearTimeout(this.resetTimer)
-        },
-        async copyText(text) {
-          try {
-            if (navigator.clipboard?.writeText) {
-              await navigator.clipboard.writeText(text)
-              return true
-            }
-          } catch (_error) {}
-
-          const field = document.createElement("textarea")
-          field.value = text
-          field.setAttribute("readonly", "")
-          field.style.position = "fixed"
-          field.style.left = "-9999px"
-          document.body.appendChild(field)
-          field.select()
-          let ok = false
-          try {
-            ok = document.execCommand("copy")
-          } catch (_error) {}
-          field.remove()
-          return ok
-        },
-        selectRoomCode() {
-          const heading = document.querySelector("h1")
-          if (!heading) return
-          const range = document.createRange()
-          range.selectNodeContents(heading)
-          const selection = window.getSelection()
-          selection.removeAllRanges()
-          selection.addRange(range)
-        }
-      }
-    </script>
     """
   end
 end
