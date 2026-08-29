@@ -2,21 +2,21 @@
 
 Karaoke companion for all-hands: Zoom is for faces, this app syncs a backing track, timed lyrics, and a singer queue.
 
-One person **hosts on a Mac**. Everyone else opens the same room on their phone or laptop so the song and lyrics stay in sync. Stay on Zoom for faces. Use headphones so the backing track does not leak into the call.
+One person **hosts**. Everyone else opens the same room so the song and lyrics stay in sync. Stay on Zoom for faces. Use headphones so the backing track does not leak into the call.
 
-This guide is for hosting on macOS. You do not need Postgres — the app uses a local SQLite file.
+This guide is for macOS. You do not need Postgres — the app uses a local SQLite file.
 
-To put the app on the public internet instead, see [Deploy on Fly.io](#deploy-on-flyio). The Fly machine stays small (no Demucs). For automatic vocal isolation on the hosted site, run `mix stems.worker` on your Mac.
+To put the app on the public internet, see [Deploy on Fly.io](#deploy-on-flyio). The Fly machine stays small (no Demucs). Each host runs vocal isolation on **their own Mac** for **their own room**.
 
 ## What you need
 
-- A Mac on the same Wi-Fi as your guests
+- A Mac
 - About 15–30 minutes the first time (mostly downloads)
 - An internet connection (lyrics lookup and the first vocal-isolation model)
 
 Typical all-hands flow:
 
-1. You start the app on this Mac and create a room.
+1. You create a room (on Fly or on this Mac).
 2. You share the URL and room code.
 3. People add songs to the queue (mp3 / wav / m4a / ogg, optional `.lrc` lyrics).
 4. You hit **Play**. Everyone’s lyrics stay in sync. Zoom stays for video.
@@ -29,100 +29,37 @@ If `brew` is already available (`brew --version`), skip this.
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-On Apple Silicon, follow the “Next steps” Homebrew prints so `brew` is on your PATH (usually adding it to `~/.zprofile`). Then open a new Terminal window.
+On Apple Silicon, follow the “Next steps” Homebrew prints so `brew` is on your PATH. Then open a new Terminal window.
 
-Confirm:
+If compilation later fails: `xcode-select --install`.
 
-```sh
-brew --version
-```
-
-If compilation later fails, install Apple’s command line tools:
-
-```sh
-xcode-select --install
-```
-
-## 2. Install Elixir, ffmpeg, and Python
-
-```sh
-brew install elixir ffmpeg python git
-```
-
-- **Elixir** (1.17+) includes Erlang and is what runs the app.
-- **ffmpeg** is required for vocal isolation.
-- **Python** is required for [Demucs](https://github.com/facebookresearch/demucs), which strips vocals from uploaded songs. Do not use macOS’s `/usr/bin/python3` — it has no `pip`.
-
-Confirm versions:
-
-```sh
-elixir -v          # Elixir 1.17 or newer
-which python3      # should be /opt/homebrew/bin/python3 (Apple Silicon)
-                   # or /usr/local/bin/python3 (Intel)
-ffmpeg -version
-```
-
-If `which python3` still prints `/usr/bin/python3`, use the Homebrew path in the next step (`/opt/homebrew/bin/python3` or `/usr/local/bin/python3`).
-
-## 3. Get the project
-
-If you already have the folder, `cd` into it. Otherwise:
+## 2. Get the project and install everything
 
 ```sh
 git clone <this-repo-url>
 cd all_hands_sing_along
+./script/setup
 ```
 
-## 4. Install vocal isolation (Demucs)
+That installs Elixir, ffmpeg, Python, Demucs, and the Phoenix app. Safe to re-run.
 
-Uploaded songs stay **Preparing** until an instrumental exists and timed lyrics are attached. Isolation runs locally with Demucs (`--two-stems=vocals`). It is slow (often a few minutes per song) and needs a one-time model download the first time you process a track.
+## 3. Start
 
-Homebrew Python will refuse a system-wide `pip install`, so use a project virtualenv:
+**Hosted site** ([all-hands-sing-along.fly.dev](https://all-hands-sing-along.fly.dev)): create a room as host. The page shows a command that only processes **your** room:
 
 ```sh
-cd all_hands_sing_along
-
-# Apple Silicon
-/opt/homebrew/bin/python3 -m venv .venv
-
-# Intel Macs, if the line above fails:
-# /usr/local/bin/python3 -m venv .venv
-
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install demucs numpy
+./script/worker --room ABC123 --token YOUR_HOST_TOKEN
 ```
 
-Confirm:
+Leave that window open. Another host on the same site uses **their** command; workers do not share a queue. Guests never need a token. You can still **Attach instrumental** or **Use original anyway**. Isolation can take several minutes; the first song also downloads the Demucs model.
+
+**Local Wi-Fi** (this Mac is the karaoke server):
 
 ```sh
-.venv/bin/python -c "import demucs; print('demucs ok')"
+./script/server
 ```
 
-The app looks for `.venv/bin/python` automatically. Restart `mix phx.server` after you install Demucs if the server is already running.
-
-If Demucs is missing, the queue shows **Vocal isolation isn’t installed on this machine**. You can still **Attach instrumental**, **Retry**, or **Use original anyway**.
-
-Lyrics lookup is separate: a missing LRC still shows **Couldn't find timed lyrics** even while vocals are being removed.
-
-## 5. Install the Elixir app
-
-From the project root:
-
-```sh
-mix setup
-```
-
-The first run downloads Hex packages, creates `all_hands_sing_along_dev.db`, and builds JS/CSS. That can take a few minutes.
-
-If Mix asks to install Hex or Rebar, say yes.
-
-## 6. Start the server
-
-```sh
-mix phx.server
-```
-
-Leave this Terminal window open. The Mac is the karaoke machine — if you quit the server, the room goes away for everyone.
+On this Mac, open [http://localhost:4000](http://localhost:4000). Leave the Terminal open.
 
 Find this Mac’s Wi-Fi address:
 
@@ -130,17 +67,7 @@ Find this Mac’s Wi-Fi address:
 ipconfig getifaddr en0
 ```
 
-If that prints nothing, try `en1` (common on Macs using Ethernet or a USB adapter):
-
-```sh
-ipconfig getifaddr en1
-```
-
-On this Mac, open [http://localhost:4000](http://localhost:4000).
-
-Guests should use `http://YOUR_IP:4000` — for example `http://192.168.1.42:4000`. They will not be able to use `localhost`; that only works on the host Mac.
-
-The server listens on the local network by default (`0.0.0.0`). If macOS asks whether Terminal / beam / Elixir may accept incoming connections, choose **Allow**.
+If that prints nothing, try `en1`. Guests use `http://YOUR_IP:4000` — not `localhost`. If macOS asks to accept incoming connections, choose **Allow**.
 
 ### macOS Firewall
 
@@ -151,54 +78,53 @@ If guests cannot load the page:
 3. Confirm guests are on the **same Wi-Fi**, not guest/isolated/VPN Wi-Fi
 4. Confirm you shared `http://IP:4000`, not `https`
 
-## 7. Host a karaoke session
+## 4. Host a karaoke session
 
-On the host Mac (use this same browser for the whole session — the host cookie lives there):
+Use the same browser for the whole session — the host cookie lives there.
 
-1. Open `http://localhost:4000`.
+1. Open the site (Fly URL or `http://localhost:4000`).
 2. Under **Host a room**, enter your name and click **Create room**.
 3. You should see a **Host** badge, Play / Pause / Skip, and a short room code.
-4. Share with the group:
-   - The URL: `http://YOUR_IP:4000`
-   - The **room code** on screen
-5. Guests open that URL, enter their name and the room code, then **Join**.
-6. Anyone can add a song (title + artist, optional audio file and `.lrc`). The app tries to fetch timed lyrics from [lrclib.net](https://lrclib.net).
-7. Wait until a song is **Ready** (instrumental + lyrics). Isolation can take several minutes; the first song also downloads the Demucs model.
-8. Host hits **Play**. Everyone should hear the backing track and see the current lyric line.
-9. Use **Lyrics later** / **Lyrics earlier** if the line is off by a beat. Reorder ready songs with **Move up** / **Move down**.
+4. Share the URL and the **room code**.
+5. Guests enter their name and the room code, then **Join**.
+6. Anyone can add a song. The app tries to fetch timed lyrics from [lrclib.net](https://lrclib.net).
+7. Wait until a song is **Ready** (instrumental + lyrics).
+8. Host hits **Play**.
+9. Use **Lyrics later** / **Lyrics earlier** if the line is off. Reorder ready songs with **Move up** / **Move down**.
 
 ### Host checklist
 
-- Keep the Terminal running `mix phx.server` and keep the host browser tab open.
-- Use **headphones**. The room page warns about this so Zoom does not pick up the track.
+- Keep the worker or server Terminal running, and keep the host browser tab open.
+- Use **headphones**.
 - Stay on Zoom (or Meet) for faces only.
-- Do not clear this site’s cookies mid-session or you will lose host controls. Create the room again if that happens.
-- Prevent sleep: System Settings → Displays → Advanced → prevent automatic sleeping while the display is off — or plug in and keep the lid open.
+- Do not clear this site’s cookies mid-session or you will lose host controls.
+- Prevent sleep, or plug in and keep the lid open.
 
 ### If a song is stuck on Preparing
 
-- **No song file yet** — upload mp3 / wav / m4a / ogg (host can attach audio for anyone; guests can attach their own).
+- **No song file yet** — upload mp3 / wav / m4a / ogg.
 - **Couldn't find timed lyrics** — search with a fuller title, pick a result, or paste an `.lrc`.
+- **Waiting for your Mac** — run the host command from the room page (`./script/worker …`).
 - **Removing vocals…** — wait, or **Cancel** / **Use original anyway**.
-- **Vocal isolation isn’t installed** — finish [step 4](#4-install-vocal-isolation-demucs) and restart the server.
-- Host can **Attach instrumental** if you already have a karaoke/instrumental file.
+- Host can **Attach instrumental** if you already have a karaoke file.
 
 ## Stop / start next time
 
 ```sh
 cd all_hands_sing_along
-mix phx.server
+./script/setup          # only if you deleted .venv or the folder
+./script/worker --room … --token …   # Fly
+# or
+./script/server                      # local Wi-Fi
 ```
 
-You do not need `mix setup` or the Demucs install again unless you deleted the folder or `.venv`.
-
-To stop the server: focus the Terminal window and press `Ctrl+C`.
+To stop: focus the Terminal window and press `Ctrl+C`.
 
 ## Deploy on Fly.io
 
 Phoenix LiveView needs a persistent VM, so this app is not a fit for Vercel. [Fly.io](https://fly.io) is the cheapest typical host: one small machine plus a SQLite volume, about **$4–8/month**.
 
-Cloud machines do **not** run Demucs. Songs stay playable if someone attaches an instrumental or uses **Use original anyway**. To strip vocals automatically, leave the cheap Fly app as-is and run Demucs on your Mac with `mix stems.worker` (below).
+Cloud machines do **not** run Demucs. Each host isolates vocals on their Mac with `./script/worker`. Songs stay playable if someone attaches an instrumental or uses **Use original anyway**.
 
 ### 1. Install the Fly CLI and log in
 
@@ -232,36 +158,13 @@ fly deploy
 
 The image is a Phoenix release (Elixir + SQLite). It does not install Python, Demucs, or ffmpeg.
 
-Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room code. The machine auto-stops when idle and starts on the next visit (a few seconds of cold start). During a session, LiveView connections keep it running.
+Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room code. Copy the **vocal isolation** command from the room page and run it on your Mac. The machine auto-stops when idle and starts on the next visit.
 
-If you use a custom domain, set `PHX_HOST` to that domain in `fly.toml` (or `fly secrets` / `[env]`) so LiveView WebSockets pass the origin check.
+If you use a custom domain, set `PHX_HOST` to that domain in `fly.toml` so LiveView WebSockets pass the origin check.
 
-### 4. Strip vocals from your Mac
+Optional: `./script/worker --room … --token … --url https://your-app.fly.dev` if the app name is not `all-hands-sing-along`.
 
-The hosted site queues isolation jobs. Your computer downloads each song, runs Demucs, and uploads the instrumental. The Mac must stay awake with this process running.
-
-One-time token (save the printed value):
-
-```sh
-TOKEN="$(mix phx.gen.secret)"
-echo "$TOKEN"
-fly secrets set STEM_WORKER_TOKEN="$TOKEN"
-```
-
-Then deploy so Fly has the new worker routes (`fly deploy`).
-
-Before karaoke, in the project folder on your Mac (with `.venv` and Demucs already installed):
-
-```sh
-export STEM_WORKER_TOKEN="the-token-from-above"
-mix stems.worker
-```
-
-Leave that Terminal open. Songs on the website will show **Waiting for your Mac** until this process picks them up. Isolation still takes a few minutes per song.
-
-Optional: `STEM_SITE_URL=https://your-app.fly.dev mix stems.worker` if the app name is not `all-hands-sing-along`.
-
-### 5. Useful commands
+### 4. Useful commands
 
 ```sh
 fly status
@@ -275,21 +178,22 @@ To stop spending money: `fly apps destroy <app-name>` (this deletes the volume t
 
 | Problem | What to try |
 | --- | --- |
-| `elixir: command not found` | `brew install elixir`, then open a new Terminal |
-| `mix setup` fails compiling | `xcode-select --install`, then retry |
-| `which python3` is `/usr/bin/python3` | Create the venv with `/opt/homebrew/bin/python3` (or `/usr/local/bin/python3` on Intel) |
-| Queue says isolation isn’t installed | Recreate `.venv`, `pip install demucs numpy`, restart `mix phx.server` |
-| Hosted site waits on your Mac | Run `mix stems.worker` with `STEM_WORKER_TOKEN`; Mac must stay awake |
+| `elixir: command not found` | `./script/setup`, then open a new Terminal |
+| `mix setup` fails compiling | `xcode-select --install`, then `./script/setup` |
+| Demucs missing | `./script/setup` (uses Homebrew Python, not `/usr/bin/python3`) |
+| Hosted site waits on your Mac | Run the command on the room page; Mac must stay awake |
+| Wrong room’s songs processing | Each host must use **their** `--room` and `--token` |
 | Guests cannot open the URL | Same Wi-Fi, `ipconfig getifaddr en0`, allow firewall, use `http://IP:4000` |
-| Guests see a different room / not host | Only the Mac that clicked **Create room** is host. Guests must **Join** with the code |
+| Guests see a different room / not host | Only the browser that clicked **Create room** is host. Guests must **Join** with the code |
 | Lyrics never appear | Need internet to lrclib.net, or paste an `.lrc` |
 | First song takes forever | Normal. Demucs is downloading its model, then processing on CPU |
 
 ## Optional: developers
 
 ```sh
-mix phx.server              # or: iex -S mix phx.server
-mix stems.worker            # Demucs on this Mac for the hosted Fly site
+./script/setup
+./script/server
+./script/worker --room CODE --token TOKEN
 mix test
-mix precommit               # compile, format, test
+mix precommit
 ```

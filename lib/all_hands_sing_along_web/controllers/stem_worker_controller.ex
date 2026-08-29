@@ -1,16 +1,17 @@
 defmodule AllHandsSingAlongWeb.StemWorkerController do
   @moduledoc """
-  Lets a Mac on your network pull isolation jobs from the hosted app.
+  Lets a host's Mac pull isolation jobs for that room only.
   """
   use AllHandsSingAlongWeb, :controller
 
   alias AllHandsSingAlong.Catalog.StemSeparator
+  alias AllHandsSingAlong.Rooms
 
-  plug :require_stem_worker_token
+  plug :require_room_host
 
   @spec claim(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def claim(conn, _params) do
-    case StemSeparator.claim_remote_job() do
+    case StemSeparator.claim_remote_job(conn.assigns.worker_room.id) do
       {:ok, song} ->
         json(conn, %{
           id: song.id,
@@ -27,7 +28,7 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
   def progress(conn, params) do
     with {:ok, id} <- parse_id(params["id"]),
          {:ok, pct} <- parse_percent(params) do
-      case StemSeparator.report_remote_progress(id, pct) do
+      case StemSeparator.report_remote_progress(conn.assigns.worker_room.id, id, pct) do
         :ok -> json(conn, %{ok: true})
         {:error, :not_found} -> send_resp(conn, 404, "")
       end
@@ -39,7 +40,12 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
   @spec complete(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def complete(conn, %{"instrumental" => %Plug.Upload{} = upload} = params) do
     with {:ok, id} <- parse_id(params["id"]) do
-      case StemSeparator.complete_remote_job(id, upload.path, upload.filename) do
+      case StemSeparator.complete_remote_job(
+             conn.assigns.worker_room.id,
+             id,
+             upload.path,
+             upload.filename
+           ) do
         :ok -> json(conn, %{ok: true})
         {:error, :not_found} -> send_resp(conn, 404, "")
         {:error, :not_running} -> send_resp(conn, 409, "")
@@ -58,7 +64,7 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
     with {:ok, id} <- parse_id(params["id"]) do
       reason = fail_reason(params)
 
-      case StemSeparator.fail_remote_job(id, reason) do
+      case StemSeparator.fail_remote_job(conn.assigns.worker_room.id, id, reason) do
         :ok -> json(conn, %{ok: true})
         {:error, :not_found} -> send_resp(conn, 404, "")
       end
@@ -67,16 +73,18 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
     end
   end
 
-  defp require_stem_worker_token(conn, _opts) do
-    expected = Application.get_env(:all_hands_sing_along, :stem_worker_token)
-    presented = bearer_token(conn)
+  defp require_room_host(conn, _opts) do
+    code = conn.params["code"]
+    token = bearer_token(conn)
 
-    if valid_token?(expected, presented) do
-      conn
+    with {:ok, room} <- Rooms.get_room_by_code(code),
+         :ok <- Rooms.authorize_host(room, token) do
+      assign(conn, :worker_room, room)
     else
-      conn
-      |> send_resp(401, "")
-      |> halt()
+      _ ->
+        conn
+        |> send_resp(401, "")
+        |> halt()
     end
   end
 
@@ -87,14 +95,6 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
       _ -> nil
     end
   end
-
-  defp valid_token?(expected, presented)
-       when is_binary(expected) and expected != "" and is_binary(presented) do
-    byte_size(expected) == byte_size(presented) and
-      Plug.Crypto.secure_compare(expected, presented)
-  end
-
-  defp valid_token?(_, _), do: false
 
   defp parse_id(id) when is_integer(id), do: {:ok, id}
 

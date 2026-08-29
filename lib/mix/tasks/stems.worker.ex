@@ -1,17 +1,15 @@
 defmodule Mix.Tasks.Stems.Worker do
   @moduledoc """
-  Pulls vocal-isolation jobs from the hosted site and runs Demucs on this Mac.
+  Pulls vocal-isolation jobs for one room from the hosted site and runs Demucs.
 
-      mix stems.worker
-      mix stems.worker --url https://all-hands-sing-along.fly.dev
-
-  Set `STEM_WORKER_TOKEN` to the same value as the Fly secret.
+      mix stems.worker --room ABC123 --token HOST_TOKEN
+      ./script/worker --room ABC123 --token HOST_TOKEN
   """
   use Mix.Task
 
   alias AllHandsSingAlong.Catalog.DemucsStemAdapter
 
-  @shortdoc "Run Demucs for songs uploaded to the hosted karaoke site"
+  @shortdoc "Run Demucs for one hosted karaoke room"
 
   @default_url "https://all-hands-sing-along.fly.dev"
   @poll_ms 2_000
@@ -23,43 +21,55 @@ defmodule Mix.Tasks.Stems.Worker do
     {:ok, _} = Application.ensure_all_started(:req)
 
     {opts, _rest} =
-      OptionParser.parse!(args, strict: [url: :string, token: :string], aliases: [u: :url])
+      OptionParser.parse!(args,
+        strict: [url: :string, token: :string, room: :string],
+        aliases: [u: :url, r: :room, t: :token]
+      )
 
     url = opts[:url] || System.get_env("STEM_SITE_URL") || @default_url
     token = opts[:token] || System.get_env("STEM_WORKER_TOKEN")
+    room = opts[:room] || System.get_env("STEM_ROOM_CODE")
 
     cond do
-      not is_binary(token) or String.trim(token) == "" ->
-        Mix.raise("Set STEM_WORKER_TOKEN to the Fly secret of the same name")
+      not is_binary(room) or String.trim(room) == "" or not is_binary(token) or
+          String.trim(token) == "" ->
+        Mix.raise("""
+        Missing room code or host token.
+
+        Create a room on the site, then run the command shown to the host:
+
+            ./script/worker --room ABC123 --token YOUR_HOST_TOKEN
+        """)
 
       not DemucsStemAdapter.available?() ->
-        Mix.raise("Demucs is not installed on this Mac. See README: Install vocal isolation")
+        Mix.raise("Demucs is not installed. Run ./script/setup first.")
 
       true ->
-        Mix.shell().info("Waiting for songs on #{url}")
-        loop(String.trim_trailing(url, "/"), String.trim(token))
+        room = room |> String.trim() |> String.upcase()
+        Mix.shell().info("Waiting for songs in room #{room} on #{url}")
+        loop(String.trim_trailing(url, "/"), String.trim(token), room)
     end
   end
 
-  defp loop(url, token) do
-    case claim(url, token) do
+  defp loop(url, token, room) do
+    case claim(url, token, room) do
       :empty ->
         Process.sleep(@poll_ms)
-        loop(url, token)
+        loop(url, token, room)
 
       {:ok, job} ->
-        process_job(url, token, job)
-        loop(url, token)
+        process_job(url, token, room, job)
+        loop(url, token, room)
 
       {:error, reason} ->
         Mix.shell().error("Worker request failed: #{inspect(reason)}")
         Process.sleep(5_000)
-        loop(url, token)
+        loop(url, token, room)
     end
   end
 
-  defp claim(url, token) do
-    case req(url, token) |> Req.post(url: "/internal/stems/claim") do
+  defp claim(url, token, room) do
+    case req(url, token, room) |> Req.post(url: "/internal/stems/claim") do
       {:ok, %{status: 204}} ->
         :empty
 
@@ -77,7 +87,7 @@ defmodule Mix.Tasks.Stems.Worker do
     end
   end
 
-  defp process_job(url, token, job) do
+  defp process_job(url, token, room, job) do
     Mix.shell().info("Removing vocals: #{job.title} (##{job.id})")
 
     tmp_dir =
@@ -86,15 +96,15 @@ defmodule Mix.Tasks.Stems.Worker do
     File.mkdir_p!(tmp_dir)
 
     try do
-      with {:ok, input} <- download_original(url, token, job, tmp_dir),
-           {:ok, produced} <- isolate(url, token, job.id, input),
-           :ok <- upload_instrumental(url, token, job.id, produced) do
+      with {:ok, input} <- download_original(url, token, room, job, tmp_dir),
+           {:ok, produced} <- isolate(url, token, room, job.id, input),
+           :ok <- upload_instrumental(url, token, room, job.id, produced) do
         Mix.shell().info("Uploaded instrumental for ##{job.id}")
         :ok
       else
         {:error, reason} ->
           Mix.shell().error("Job ##{job.id} failed: #{inspect(reason)}")
-          _ = fail(url, token, job.id, reason)
+          _ = fail(url, token, room, job.id, reason)
           :ok
       end
     after
@@ -102,12 +112,12 @@ defmodule Mix.Tasks.Stems.Worker do
     end
   end
 
-  defp download_original(url, token, job, tmp_dir) do
+  defp download_original(url, token, room, job, tmp_dir) do
     ext = job.original_path |> Path.extname() |> String.downcase()
     ext = if ext == "", do: ".mp3", else: ext
     dest = Path.join(tmp_dir, "original#{ext}")
 
-    case req(url, token)
+    case req(url, token, room)
          |> Req.get(
            url: job.original_path,
            into: File.stream!(dest),
@@ -126,10 +136,10 @@ defmodule Mix.Tasks.Stems.Worker do
     end
   end
 
-  defp isolate(url, token, song_id, input) do
+  defp isolate(url, token, room, song_id, input) do
     progress = fn pct ->
       _ =
-        req(url, token)
+        req(url, token, room)
         |> Req.post(url: "/internal/stems/#{song_id}/progress", json: %{percent: pct})
 
       :ok
@@ -138,11 +148,11 @@ defmodule Mix.Tasks.Stems.Worker do
     DemucsStemAdapter.isolate(input, progress)
   end
 
-  defp upload_instrumental(url, token, song_id, path) do
+  defp upload_instrumental(url, token, room, song_id, path) do
     filename = Path.basename(path)
     body = File.read!(path)
 
-    case req(url, token)
+    case req(url, token, room)
          |> Req.post(
            url: "/internal/stems/#{song_id}/complete",
            form_multipart: [
@@ -157,8 +167,8 @@ defmodule Mix.Tasks.Stems.Worker do
     end
   end
 
-  defp fail(url, token, song_id, reason) do
-    req(url, token)
+  defp fail(url, token, room, song_id, reason) do
+    req(url, token, room)
     |> Req.post(url: "/internal/stems/#{song_id}/fail", json: %{reason: fail_reason(reason)})
   end
 
@@ -171,10 +181,11 @@ defmodule Mix.Tasks.Stems.Worker do
     %{id: id, title: title, original_path: path}
   end
 
-  defp req(url, token) do
+  defp req(url, token, room) do
     Req.new(
       base_url: url,
       auth: {:bearer, token},
+      params: [code: room],
       decode_body: true,
       retry: false,
       receive_timeout: 30_000

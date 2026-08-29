@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+if ! command -v mix >/dev/null 2>&1; then
+  echo "mix was not found. Run ./script/setup, then open a new Terminal."
+  exit 1
+fi
+
+exec mix phx.server
