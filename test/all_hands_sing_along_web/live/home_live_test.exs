@@ -5,11 +5,14 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
   alias AllHandsSingAlong.Rooms
 
   test "renders create and join forms", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/")
+    {:ok, view, html} = live(conn, ~p"/")
     assert html =~ "All Hands Sing Song"
     assert html =~ "Host a room"
     assert html =~ "Join a room"
     assert html =~ "Zoom companion"
+    assert has_element?(view, "#how-it-works")
+    assert html =~ "How it works"
+    assert html =~ "Host hits Play"
   end
 
   test "POST host session creates a room and stores the token", %{conn: conn} do

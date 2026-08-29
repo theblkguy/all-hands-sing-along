@@ -174,6 +174,7 @@ defmodule Mix.Tasks.Stems.Worker do
 
   defp fail_reason(:not_installed), do: "not_installed"
   defp fail_reason(:missing_numpy), do: "missing_numpy"
+  defp fail_reason(:missing_ffmpeg), do: "missing_ffmpeg"
   defp fail_reason(:missing_audio), do: "missing_audio"
   defp fail_reason(_), do: "stem_failed"
 

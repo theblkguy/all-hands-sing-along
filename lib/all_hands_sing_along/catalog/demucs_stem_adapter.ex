@@ -25,7 +25,7 @@ defmodule AllHandsSingAlong.Catalog.DemucsStemAdapter do
 
       case run_demucs(exe, args, progress) do
         {:ok, _output} ->
-          result = find_output(tmp)
+          result = produce_guide(tmp)
           cleanup(tmp, result)
           result
 
@@ -138,10 +138,87 @@ defmodule AllHandsSingAlong.Catalog.DemucsStemAdapter do
 
   defp parse_percent(_), do: nil
 
-  defp find_output(tmp) do
-    case Path.wildcard(Path.join(tmp, "**/no_vocals.*")) do
-      [path | _] -> {:ok, path}
-      [] -> {:error, :no_output}
+  defp produce_guide(tmp) do
+    with {:ok, instrumental} <- find_stem(tmp, "no_vocals"),
+         {:ok, vocals} <- find_stem(tmp, "vocals") do
+      mix_guide_vocal(instrumental, vocals, Path.join(tmp, "guide.wav"))
+    else
+      {:error, _} -> {:error, :no_output}
+    end
+  end
+
+  defp find_stem(tmp, name) do
+    Path.wildcard(Path.join(tmp, "**/*"))
+    |> Enum.find(fn file ->
+      File.regular?(file) and Path.rootname(Path.basename(file)) == name
+    end)
+    |> case do
+      path when is_binary(path) -> {:ok, path}
+      nil -> {:error, :no_output}
+    end
+  end
+
+  @doc false
+  def mix_guide_vocal(instrumental_path, vocals_path, output_path)
+      when is_binary(instrumental_path) and is_binary(vocals_path) and is_binary(output_path) do
+    if File.regular?(instrumental_path) and File.regular?(vocals_path) do
+      run_guide_mix(instrumental_path, vocals_path, output_path)
+    else
+      {:error, :stem_failed}
+    end
+  end
+
+  defp run_guide_mix(instrumental_path, vocals_path, output_path) do
+    case ffmpeg_executable() do
+      nil ->
+        Logger.warning("ffmpeg is not installed; cannot mix a guide vocal")
+        {:error, :missing_ffmpeg}
+
+      ffmpeg ->
+        volume = :erlang.float_to_binary(vocal_mix() / 1, decimals: 4)
+
+        filter =
+          "[1:a]volume=#{volume}[v];[0:a][v]amix=inputs=2:duration=first:dropout_transition=0:normalize=0"
+
+        args = [
+          "-y",
+          "-i",
+          instrumental_path,
+          "-i",
+          vocals_path,
+          "-filter_complex",
+          filter,
+          output_path
+        ]
+
+        case System.cmd(ffmpeg, args, stderr_to_stdout: true) do
+          {_output, 0} ->
+            if File.regular?(output_path), do: {:ok, output_path}, else: {:error, :stem_failed}
+
+          {output, _status} ->
+            Logger.warning("ffmpeg mix failed: #{String.slice(to_string(output), 0, 500)}")
+            {:error, :stem_failed}
+        end
+    end
+  end
+
+  defp ffmpeg_executable do
+    case Keyword.get(config(), :ffmpeg, true) do
+      false ->
+        nil
+
+      path when is_binary(path) and path != "" ->
+        if File.exists?(path), do: path, else: System.find_executable(path)
+
+      _ ->
+        System.find_executable("ffmpeg")
+    end
+  end
+
+  defp vocal_mix do
+    case Keyword.get(config(), :vocal_mix, 0.12) do
+      mix when is_number(mix) and mix >= 0 and mix <= 1 -> mix
+      _ -> 0.12
     end
   end
 
