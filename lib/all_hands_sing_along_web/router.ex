@@ -16,6 +16,11 @@ defmodule AllHandsSingAlongWeb.Router do
   end
 
   scope "/", AllHandsSingAlongWeb do
+    get "/health", HealthController, :show
+    get "/uploads/:filename", UploadController, :show
+  end
+
+  scope "/", AllHandsSingAlongWeb do
     pipe_through :browser
 
     live "/", HomeLive, :index

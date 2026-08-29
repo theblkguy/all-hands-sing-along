@@ -458,223 +458,242 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <div class="space-y-6">
-        <div class="alert alert-warning text-sm">
-          Use headphones so the backing track does not leak into Zoom.
+      <div class="space-y-8">
+        <div
+          class="glass-panel flex items-center gap-3 rounded-full px-4 py-2 text-sm text-amber-100/80"
+          title="Use headphones so the backing track does not leak into Zoom."
+        >
+          <.icon name="hero-speaker-x-mark" class="size-5 shrink-0 text-amber-200" />
+          <span class="sr-only">
+            Use headphones so the backing track does not leak into Zoom.
+          </span>
+          <span class="hidden sm:inline">Headphones on. Keep the mix out of Zoom.</span>
         </div>
 
-        <div class="flex flex-wrap items-end justify-between gap-3">
+        <div class="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p class="text-sm text-base-content/60">Room code</p>
-            <h1 class="text-3xl font-semibold tracking-wide">{@room.code}</h1>
-            <p class="text-sm text-base-content/70">
+            <p class="text-xs font-medium uppercase tracking-[0.28em] text-white/45">Room code</p>
+            <h1 class="mt-1 font-mono text-4xl font-semibold tracking-[0.2em] text-white">
+              {@room.code}
+            </h1>
+            <p class="mt-2 text-sm text-white/65">
               You are {@display_name}
-              <span :if={@host?} class="badge badge-primary badge-sm ml-2">Host</span>
+              <span
+                :if={@host?}
+                class="ml-2 rounded-full border border-amber-200/30 bg-amber-200/15 px-2 py-0.5 text-[11px] uppercase tracking-wider text-amber-100"
+              >
+                Host
+              </span>
             </p>
           </div>
-          <div :if={@host?} class="flex flex-col items-end gap-1">
-            <div class="join">
-              <.button id="start-singer" type="button" variant="primary" phx-click="play">
-                Start singer
-              </.button>
-              <.button type="button" phx-click="pause">Pause</.button>
-              <.button id="skip-song" type="button" phx-click="skip">
-                Skip
-              </.button>
+          <div :if={@host?} class="flex flex-col items-end gap-2">
+            <div class="flex items-center gap-2">
+              <.icon_button
+                id="start-singer"
+                icon="hero-play"
+                label="Start singer"
+                variant="primary"
+                phx-click="play"
+              />
+              <.icon_button id="pause-song" icon="hero-pause" label="Pause" phx-click="pause" />
+              <.icon_button id="skip-song" icon="hero-forward" label="Skip" phx-click="skip" />
             </div>
-            <p class="text-xs text-base-content/60">
-              Start singer plays the backing track (no vocals).
-            </p>
+            <p class="text-xs text-white/45">Backing track, no vocals</p>
           </div>
         </div>
 
-        <div class="card bg-base-200">
-          <div class="card-body space-y-3">
-            <p class="text-sm uppercase tracking-wide text-base-content/60">Now playing</p>
+        <div class="glass-panel space-y-5 rounded-3xl p-6 sm:p-8">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <p class="text-xs font-medium uppercase tracking-[0.28em] text-white/45">Now playing</p>
             <p
               :if={playback_mode(@playback)}
               id="playback-mode"
-              class="badge badge-soft"
+              class="rounded-full border border-white/15 px-3 py-1 text-xs text-white/70"
             >
               {playback_mode_label(@playback)}
             </p>
-            <p id="now-playing-title" class="text-xl font-medium">
-              {playback_heading(@playback)}
-            </p>
-            <p
-              :if={@playback && @playback.singer_name}
-              id="now-playing-singer"
-              class="text-base-content/70"
-            >
-              {@playback.singer_name}
-            </p>
-            <div
-              id="karaoke-player"
-              phx-hook="KaraokePlayer"
-              phx-update="ignore"
-              data-playing={@playback && @playback.playing?}
-            >
-              <p id="lyric-line" class="text-2xl font-semibold min-h-10"></p>
-              <audio id="karaoke-audio" controls class="w-full" preload="auto">
-                <source :if={@playback && @playback.audio_url} src={@playback.audio_url} />
-              </audio>
+          </div>
+          <p id="now-playing-title" class="text-2xl font-medium tracking-tight text-white sm:text-3xl">
+            {playback_heading(@playback)}
+          </p>
+          <p
+            :if={@playback && @playback.singer_name}
+            id="now-playing-singer"
+            class="text-white/60"
+          >
+            {@playback.singer_name}
+          </p>
+          <div
+            id="karaoke-player"
+            phx-hook="KaraokePlayer"
+            phx-update="ignore"
+            data-playing={@playback && @playback.playing?}
+            class="space-y-4"
+          >
+            <div class="lyric-roll">
+              <p id="lyric-line-outgoing" class="lyric-roll-line is-outgoing" aria-hidden="true"></p>
+              <p id="lyric-line" class="lyric-roll-line is-current"></p>
             </div>
-            <div :if={@host?} class="flex flex-wrap items-center gap-2">
-              <.button
-                id="lyrics-later"
-                type="button"
-                phx-click="nudge_lyrics"
-                phx-value-delta="-100"
-              >
-                Lyrics later
-              </.button>
-              <.button
-                id="lyrics-earlier"
-                type="button"
-                phx-click="nudge_lyrics"
-                phx-value-delta="100"
-              >
-                Lyrics earlier
-              </.button>
-              <p id="lyrics-offset" class="text-sm text-base-content/70">
-                {offset_label(@playback && @playback.offset_ms)}
-              </p>
-            </div>
-            <p
-              :if={@host? and @lyric_preview}
-              id="singer-muted-note"
-              class="text-sm text-base-content/70"
-            >
-              Singer track is muted in your headphones while you tune the next song.
+            <audio id="karaoke-audio" controls class="w-full" preload="auto">
+              <source :if={@playback && @playback.audio_url} src={@playback.audio_url} />
+            </audio>
+          </div>
+          <div :if={@host?} class="flex flex-wrap items-center gap-2">
+            <.icon_button
+              id="lyrics-later"
+              icon="hero-minus"
+              label="Lyrics later"
+              phx-click="nudge_lyrics"
+              phx-value-delta="-100"
+            />
+            <.icon_button
+              id="lyrics-earlier"
+              icon="hero-plus"
+              label="Lyrics earlier"
+              phx-click="nudge_lyrics"
+              phx-value-delta="100"
+            />
+            <p id="lyrics-offset" class="text-sm text-white/55">
+              {offset_label(@playback && @playback.offset_ms)}
             </p>
           </div>
+          <p
+            :if={@host? and @lyric_preview}
+            id="singer-muted-note"
+            class="text-sm text-amber-100/70"
+          >
+            Singer track is muted in your headphones while you tune the next song.
+          </p>
         </div>
 
-        <div :if={@host? and @lyric_preview} id="lyric-preview-card" class="card bg-base-200">
-          <div class="card-body space-y-3">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="text-sm uppercase tracking-wide text-base-content/60">
-                  Tune next song
-                </p>
-                <p id="lyric-preview-title" class="text-xl font-medium">
-                  {Catalog.format_title(@lyric_preview.title, @lyric_preview.artist)}
-                </p>
-                <p class="text-base-content/70">{@lyric_preview.singer_name}</p>
-              </div>
-              <.button id="close-lyric-preview" type="button" phx-click="close_lyric_preview">
-                Close preview
-              </.button>
-            </div>
-            <p class="text-sm text-base-content/70">
-              Original mix (vocals on). Guests still hear the singer.
-            </p>
-            <div
-              id="lyric-preview"
-              phx-hook="LyricPreview"
-              phx-update="ignore"
-            >
-              <p id="lyric-preview-line" class="text-2xl font-semibold min-h-10"></p>
-              <audio id="lyric-preview-audio" controls class="w-full" preload="auto"></audio>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <.button
-                id="preview-lyrics-later"
-                type="button"
-                phx-click="nudge_preview"
-                phx-value-delta="-100"
-              >
-                Lyrics later
-              </.button>
-              <.button
-                id="preview-lyrics-earlier"
-                type="button"
-                phx-click="nudge_preview"
-                phx-value-delta="100"
-              >
-                Lyrics earlier
-              </.button>
-              <p id="lyric-preview-offset" class="text-sm text-base-content/70">
-                {offset_label(@lyric_preview.offset_ms)}
+        <div
+          :if={@host? and @lyric_preview}
+          id="lyric-preview-card"
+          class="glass-panel space-y-4 rounded-3xl p-6"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-medium uppercase tracking-[0.28em] text-white/45">
+                Tune next song
               </p>
+              <p id="lyric-preview-title" class="mt-1 text-xl font-medium text-white">
+                {Catalog.format_title(@lyric_preview.title, @lyric_preview.artist)}
+              </p>
+              <p class="text-white/60">{@lyric_preview.singer_name}</p>
             </div>
+            <.icon_button
+              id="close-lyric-preview"
+              icon="hero-x-mark"
+              label="Close preview"
+              phx-click="close_lyric_preview"
+            />
+          </div>
+          <p class="text-sm text-white/55">Original mix (vocals on). Guests still hear the singer.</p>
+          <div id="lyric-preview" phx-hook="LyricPreview" phx-update="ignore" class="space-y-4">
+            <div class="lyric-roll">
+              <p
+                id="lyric-preview-line-outgoing"
+                class="lyric-roll-line is-outgoing"
+                aria-hidden="true"
+              >
+              </p>
+              <p id="lyric-preview-line" class="lyric-roll-line is-current"></p>
+            </div>
+            <audio id="lyric-preview-audio" controls class="w-full" preload="auto"></audio>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <.icon_button
+              id="preview-lyrics-later"
+              icon="hero-minus"
+              label="Lyrics later"
+              phx-click="nudge_preview"
+              phx-value-delta="-100"
+            />
+            <.icon_button
+              id="preview-lyrics-earlier"
+              icon="hero-plus"
+              label="Lyrics earlier"
+              phx-click="nudge_preview"
+              phx-value-delta="100"
+            />
+            <p id="lyric-preview-offset" class="text-sm text-white/55">
+              {offset_label(@lyric_preview.offset_ms)}
+            </p>
           </div>
         </div>
 
         <div class="grid gap-6 lg:grid-cols-3">
           <section class="lg:col-span-2 space-y-4">
-            <h2 class="text-lg font-semibold">Queue</h2>
+            <h2 class="text-lg font-medium text-white">Queue</h2>
 
             <.form
               for={%{}}
               id="add-queue-form"
               phx-change="validate_queue"
               phx-submit="add_to_queue"
-              class="card bg-base-200"
+              class="glass-panel space-y-4 rounded-3xl p-6"
             >
-              <div class="card-body space-y-3">
-                <h3 class="font-medium">Add a song</h3>
-                <.input
-                  id="song-title"
-                  name="song_title"
-                  label="Song title"
-                  value={@song_title}
-                  required
+              <h3 class="font-medium text-white">Add a song</h3>
+              <.input
+                id="song-title"
+                name="song_title"
+                label="Song title"
+                value={@song_title}
+                required
+              />
+              <.input
+                id="song-artist"
+                name="song_artist"
+                label="Artist"
+                value={@song_artist}
+                required
+              />
+              <div>
+                <p class="label mb-1">Audio (optional)</p>
+                <.live_file_input
+                  upload={@uploads.audio}
+                  class="file-input file-input-bordered w-full"
                 />
-                <.input
-                  id="song-artist"
-                  name="song_artist"
-                  label="Artist"
-                  value={@song_artist}
-                  required
-                />
-                <div>
-                  <p class="label mb-1">Audio (optional)</p>
-                  <.live_file_input
-                    upload={@uploads.audio}
-                    class="file-input file-input-bordered w-full"
-                  />
-                  <div
-                    :for={entry <- @uploads.audio.entries}
-                    id="audio-upload-progress"
-                    class="space-y-1 pt-2"
-                  >
-                    <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
-                    <progress class="progress w-full" max="100" value={entry.progress}></progress>
-                  </div>
+                <div
+                  :for={entry <- @uploads.audio.entries}
+                  id="audio-upload-progress"
+                  class="space-y-1 pt-2"
+                >
+                  <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
+                  <progress class="progress w-full" max="100" value={entry.progress}></progress>
                 </div>
-                <div>
-                  <p class="label mb-1">Lyrics .lrc (optional)</p>
-                  <.live_file_input
-                    upload={@uploads.lrc}
-                    class="file-input file-input-bordered w-full"
-                  />
-                  <div
-                    :for={entry <- @uploads.lrc.entries}
-                    id="lrc-upload-progress"
-                    class="space-y-1 pt-2"
-                  >
-                    <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
-                    <progress class="progress w-full" max="100" value={entry.progress}></progress>
-                  </div>
-                </div>
-                <.button type="submit" variant="primary">Add me to the queue</.button>
               </div>
+              <div>
+                <p class="label mb-1">Lyrics .lrc (optional)</p>
+                <.live_file_input
+                  upload={@uploads.lrc}
+                  class="file-input file-input-bordered w-full"
+                />
+                <div
+                  :for={entry <- @uploads.lrc.entries}
+                  id="lrc-upload-progress"
+                  class="space-y-1 pt-2"
+                >
+                  <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
+                  <progress class="progress w-full" max="100" value={entry.progress}></progress>
+                </div>
+              </div>
+              <.button type="submit" variant="primary">Add me to the queue</.button>
             </.form>
 
             <ul id="queue" phx-update="stream" class="space-y-2">
               <li
                 :for={{dom_id, entry} <- @streams.queue}
                 id={dom_id}
-                class="card bg-base-100 border border-base-300"
+                class="glass-panel rounded-2xl px-5 py-4"
               >
-                <div class="card-body py-4 gap-2">
+                <div class="flex flex-col gap-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p class="font-medium">
+                      <p class="font-medium text-white">
                         {Catalog.format_title(entry.song_title, entry.song && entry.song.artist)}
                       </p>
-                      <p class="text-sm text-base-content/70">{entry.singer_name}</p>
+                      <p class="text-sm text-white/55">{entry.singer_name}</p>
                       <p
                         :if={
                           entry.status in [:requested, :preparing] and
@@ -714,28 +733,36 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                         {entry.song.stem_error || "Couldn't remove vocals."}
                       </p>
                     </div>
-                    <span class="badge badge-soft">{status_label(entry.status)}</span>
+                    <span class="rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] uppercase tracking-wider text-white/60">
+                      {status_label(entry.status)}
+                    </span>
                   </div>
                   <div
                     :if={can_attach_missing_lyrics?(entry)}
-                    class="space-y-3 border-t border-base-300 pt-3"
+                    class="space-y-3 border-t border-white/10 pt-3"
                   >
                     <.lyrics_editor entry={entry} lyric_search={@lyric_search} />
                   </div>
                   <div
                     :if={@host? and can_replace_lyrics?(entry)}
-                    class="space-y-3 border-t border-base-300 pt-3"
+                    class="space-y-3 border-t border-white/10 pt-3"
                   >
-                    <.button
+                    <.icon_button
                       id={"change-lyrics-#{entry.id}"}
-                      type="button"
+                      icon="hero-magnifying-glass"
+                      label={
+                        if @changing_lyrics_id == entry.id,
+                          do: "Hide lyrics search",
+                          else: "Change lyrics"
+                      }
+                      class={
+                        icon_button_class(
+                          if(@changing_lyrics_id == entry.id, do: "primary", else: nil)
+                        )
+                      }
                       phx-click="toggle_change_lyrics"
                       phx-value-id={entry.id}
-                    >
-                      {if @changing_lyrics_id == entry.id,
-                        do: "Hide lyrics search",
-                        else: "Change lyrics"}
-                    </.button>
+                    />
                     <div :if={@changing_lyrics_id == entry.id} class="space-y-3">
                       <.lyrics_editor entry={entry} lyric_search={@lyric_search} />
                     </div>
@@ -746,17 +773,16 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                         Catalog.missing_audio?(entry.song) and
                         entry.status in [:requested, :preparing]
                     }
-                    class="space-y-2 border-t border-base-300 pt-3"
+                    class="space-y-2 border-t border-white/10 pt-3"
                   >
-                    <.button
+                    <.icon_button
                       :if={@attaching_audio_id != entry.id}
                       id={"start-attach-audio-#{entry.id}"}
-                      type="button"
+                      icon="hero-arrow-up-tray"
+                      label="Upload audio"
                       phx-click="start_attach_audio"
                       phx-value-id={entry.id}
-                    >
-                      Upload audio
-                    </.button>
+                    />
                     <.form
                       :if={@attaching_audio_id == entry.id}
                       for={%{}}
@@ -789,61 +815,55 @@ defmodule AllHandsSingAlongWeb.RoomLive do
                     :if={@host? and Catalog.needs_isolation?(entry.song)}
                     class="flex flex-wrap gap-2"
                   >
-                    <.button
+                    <.icon_button
                       :if={Catalog.stem_in_progress?(entry.song)}
                       id={"cancel-stems-#{entry.id}"}
-                      type="button"
+                      icon="hero-stop"
+                      label="Cancel"
                       phx-click="cancel_stems"
                       phx-value-id={entry.id}
-                    >
-                      Cancel
-                    </.button>
-                    <.button
+                    />
+                    <.icon_button
                       :if={not Catalog.stem_in_progress?(entry.song)}
                       id={"retry-stems-#{entry.id}"}
-                      type="button"
+                      icon="hero-arrow-path"
+                      label={stem_retry_label(entry.song)}
                       phx-click="retry_stems"
                       phx-value-id={entry.id}
-                    >
-                      {stem_retry_label(entry.song)}
-                    </.button>
-                    <.button
+                    />
+                    <.icon_button
                       id={"use-original-#{entry.id}"}
-                      type="button"
+                      icon="hero-speaker-wave"
+                      label="Use original anyway"
                       phx-click="use_original"
                       phx-value-id={entry.id}
-                    >
-                      Use original anyway
-                    </.button>
+                    />
                   </div>
-                  <.button
+                  <.icon_button
                     :if={@host? and can_preview_lyrics?(entry)}
                     id={"tune-lyrics-#{entry.id}"}
-                    type="button"
+                    icon="hero-adjustments-horizontal"
+                    label="Tune lyrics"
                     phx-click="tune_lyrics"
                     phx-value-id={entry.id}
-                  >
-                    Tune lyrics
-                  </.button>
+                  />
                   <div :if={@host? and entry.status == :ready} class="flex flex-wrap gap-2">
-                    <.button
+                    <.icon_button
                       id={"move-up-#{entry.id}"}
-                      type="button"
+                      icon="hero-chevron-up"
+                      label="Move up"
                       phx-click="move_ready"
                       phx-value-id={entry.id}
                       phx-value-direction="up"
-                    >
-                      Move up
-                    </.button>
-                    <.button
+                    />
+                    <.icon_button
                       id={"move-down-#{entry.id}"}
-                      type="button"
+                      icon="hero-chevron-down"
+                      label="Move down"
                       phx-click="move_ready"
                       phx-value-id={entry.id}
                       phx-value-direction="down"
-                    >
-                      Move down
-                    </.button>
+                    />
                   </div>
                 </div>
               </li>
@@ -854,34 +874,37 @@ defmodule AllHandsSingAlongWeb.RoomLive do
               id="attach-instrumental-form"
               phx-change="validate_queue"
               phx-submit="attach_instrumental"
-              class="card bg-base-200"
+              class="glass-panel space-y-4 rounded-3xl p-6"
             >
-              <div class="card-body space-y-3">
-                <h3 class="font-medium">Attach instrumental</h3>
-                <.input name="entry_id" label="Queue entry id" value="" />
-                <.live_file_input
-                  upload={@uploads.instrumental}
-                  class="file-input file-input-bordered w-full"
-                />
-                <div
-                  :for={entry <- @uploads.instrumental.entries}
-                  id="instrumental-upload-progress"
-                  class="space-y-1"
-                >
-                  <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
-                  <progress class="progress w-full" max="100" value={entry.progress}></progress>
-                </div>
-                <.button type="submit">Attach</.button>
+              <h3 class="font-medium text-white">Attach instrumental</h3>
+              <.input name="entry_id" label="Queue entry id" value="" />
+              <.live_file_input
+                upload={@uploads.instrumental}
+                class="file-input file-input-bordered w-full"
+              />
+              <div
+                :for={entry <- @uploads.instrumental.entries}
+                id="instrumental-upload-progress"
+                class="space-y-1"
+              >
+                <p class="text-sm text-base-content/70">Uploading {entry.progress}%</p>
+                <progress class="progress w-full" max="100" value={entry.progress}></progress>
               </div>
+              <.button type="submit">Attach</.button>
             </form>
           </section>
 
-          <section class="space-y-3">
-            <h2 class="text-lg font-semibold">In the room</h2>
-            <ul class="space-y-1">
-              <li :for={person <- @presence} class="flex items-center gap-2">
+          <section class="glass-panel space-y-3 rounded-3xl p-5">
+            <h2 class="text-lg font-medium text-white">In the room</h2>
+            <ul class="space-y-2">
+              <li :for={person <- @presence} class="flex items-center gap-2 text-white/80">
                 <span>{person.name}</span>
-                <span :if={person.host?} class="badge badge-xs">Host</span>
+                <span
+                  :if={person.host?}
+                  class="rounded-full border border-amber-200/30 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-100"
+                >
+                  Host
+                </span>
               </li>
             </ul>
           </section>
@@ -889,6 +912,41 @@ defmodule AllHandsSingAlongWeb.RoomLive do
       </div>
     </Layouts.app>
     """
+  end
+
+  attr :id, :string, required: true
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :variant, :string, default: nil
+  attr :class, :any, default: nil
+
+  attr :rest, :global,
+    include: ~w(disabled phx-click phx-value-id phx-value-delta phx-value-direction)
+
+  defp icon_button(assigns) do
+    assigns =
+      assign(assigns, :computed_class, assigns.class || icon_button_class(assigns.variant))
+
+    ~H"""
+    <.button
+      id={@id}
+      type="button"
+      class={@computed_class}
+      aria-label={@label}
+      title={@label}
+      {@rest}
+    >
+      <.icon name={@icon} class="size-5" />
+    </.button>
+    """
+  end
+
+  defp icon_button_class("primary") do
+    "inline-flex size-10 items-center justify-center rounded-full border border-amber-200/40 bg-amber-200 text-neutral-950 transition hover:bg-amber-100"
+  end
+
+  defp icon_button_class(_) do
+    "inline-flex size-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:border-amber-200/40 hover:bg-white/15 hover:text-amber-100"
   end
 
   attr :entry, :map, required: true

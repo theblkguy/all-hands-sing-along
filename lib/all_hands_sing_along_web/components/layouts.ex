@@ -35,29 +35,36 @@ defmodule AllHandsSingAlongWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" alt="" />
-          <span class="text-sm font-semibold">All Hands SingAlong</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <.theme_toggle />
-          </li>
-        </ul>
-      </div>
-    </header>
+    <div class="relative min-h-dvh text-base-content">
+      <canvas
+        id="disco-wash"
+        phx-hook="DiscoWash"
+        phx-update="ignore"
+        class="pointer-events-none fixed inset-0 z-0 h-full w-full"
+      ></canvas>
+      <div class="relative z-10">
+        <header class="flex items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
+          <a href="/" class="group flex w-fit items-center gap-3">
+            <.icon
+              name="hero-microphone"
+              class="size-8 text-amber-200/90 transition-transform duration-200 group-hover:scale-105"
+            />
+            <span class="text-sm font-medium tracking-[0.18em] uppercase text-white/80">
+              All Hands Sing Song
+            </span>
+          </a>
+          <.theme_toggle />
+        </header>
 
-    <main class="px-4 py-10 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-5xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
+        <main class="px-4 pb-16 sm:px-6 lg:px-8">
+          <div class="mx-auto max-w-5xl space-y-4">
+            {render_slot(@inner_block)}
+          </div>
+        </main>
 
-    <.flash_group flash={@flash} />
+        <.flash_group flash={@flash} />
+      </div>
+    </div>
     """
   end
 
@@ -117,29 +124,35 @@ defmodule AllHandsSingAlongWeb.Layouts do
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
+    <div class="relative flex flex-row items-center overflow-hidden rounded-full border border-white/15 bg-white/5">
+      <div class="absolute h-full w-1/3 rounded-full border border-white/20 bg-white/15 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex w-1/3 cursor-pointer p-2"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
+        title="System theme"
+        aria-label="System theme"
       >
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex w-1/3 cursor-pointer p-2"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
+        title="Light theme"
+        aria-label="Light theme"
       >
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex w-1/3 cursor-pointer p-2"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        title="Dark theme"
+        aria-label="Dark theme"
       >
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>

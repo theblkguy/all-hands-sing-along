@@ -4,7 +4,7 @@ defmodule AllHandsSingAlong.Catalog.Lyrics do
   Fetch synced LRC from LRCLIB using title and artist.
   """
 
-  @user_agent "AllHandsSingAlong/0.1.0 (karaoke companion)"
+  @user_agent "AllHandsSingSong/0.1.0 (karaoke companion)"
   @get_url "https://lrclib.net/api/get"
   @search_url "https://lrclib.net/api/search"
 

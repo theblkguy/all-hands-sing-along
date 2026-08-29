@@ -24,6 +24,15 @@ config :all_hands_sing_along, AllHandsSingAlongWeb.Endpoint,
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:all_hands_sing_along, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:all_hands_sing_along, ~w(--watch)]}
+  ],
+  live_reload: [
+    web_console_logger: true,
+    patterns: [
+      ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"priv/gettext/.*\.po$",
+      ~r"lib/all_hands_sing_along_web/router\.ex$",
+      ~r"lib/all_hands_sing_along_web/(controllers|live|components)/.*\.(ex|heex)$"
+    ]
   ]
 
 # ## SSL Support
