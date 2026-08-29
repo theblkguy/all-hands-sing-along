@@ -4,6 +4,11 @@ defmodule AllHandsSingAlong.Catalog.StubStemAdapter do
 
   @behaviour AllHandsSingAlong.Catalog.StemAdapter
 
+  @impl true
+  def available? do
+    Application.get_env(:all_hands_sing_along, :stem_available, true)
+  end
+
   def isolate(input_path) when is_binary(input_path), do: isolate(input_path, nil)
 
   @impl true

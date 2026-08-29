@@ -4,4 +4,6 @@ defmodule AllHandsSingAlong.Catalog.StemAdapter do
 
   @callback isolate(String.t(), (integer() -> any()) | nil) ::
               {:ok, String.t()} | {:error, term()}
+
+  @callback available?() :: boolean()
 end

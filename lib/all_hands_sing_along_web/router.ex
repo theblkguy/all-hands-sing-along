@@ -20,6 +20,13 @@ defmodule AllHandsSingAlongWeb.Router do
     get "/uploads/:filename", UploadController, :show
   end
 
+  scope "/internal", AllHandsSingAlongWeb do
+    post "/stems/claim", StemWorkerController, :claim
+    post "/stems/:id/progress", StemWorkerController, :progress
+    post "/stems/:id/complete", StemWorkerController, :complete
+    post "/stems/:id/fail", StemWorkerController, :fail
+  end
+
   scope "/", AllHandsSingAlongWeb do
     pipe_through :browser
 

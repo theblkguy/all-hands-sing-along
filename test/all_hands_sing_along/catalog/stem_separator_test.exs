@@ -60,6 +60,35 @@ defmodule AllHandsSingAlong.Catalog.StemSeparatorTest do
     refute Catalog.has_lyrics?(entry.song)
   end
 
+  test "enqueue/1 waits for a remote Mac worker when Demucs is not on this machine" do
+    room = Fixtures.room_fixture()
+    Application.put_env(:all_hands_sing_along, :stem_available, false)
+
+    song =
+      Fixtures.song_fixture(room, %{
+        title: "Remote Stems",
+        original_path: Catalog.fixture_path(),
+        instrumental_path: nil
+      })
+
+    assert :ok = StemSeparator.enqueue(song.id)
+
+    {:ok, song} = Catalog.get_song(song.id)
+    assert song.stem_status == :queued
+    refute Catalog.playable?(song)
+
+    assert {:ok, claimed} = StemSeparator.claim_remote_job()
+    assert claimed.id == song.id
+    assert claimed.stem_status == :running
+
+    wav = Path.join(:code.priv_dir(:all_hands_sing_along), "static/audio/fixture.wav")
+    assert :ok = StemSeparator.complete_remote_job(song.id, wav, "no_vocals.wav")
+
+    {:ok, done} = Catalog.get_song(song.id)
+    assert done.stem_status == :ok
+    assert Catalog.playable?(done)
+  end
+
   test "skips isolation when an instrumental is already attached" do
     room = Fixtures.room_fixture()
     song = Fixtures.song_fixture(room, %{title: "Already Backing"})
