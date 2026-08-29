@@ -77,16 +77,35 @@ defmodule AllHandsSingAlong.Catalog.StemSeparatorTest do
     assert song.stem_status == :queued
     refute Catalog.playable?(song)
 
-    assert {:ok, claimed} = StemSeparator.claim_remote_job()
+    assert {:ok, claimed} = StemSeparator.claim_remote_job(room.id)
     assert claimed.id == song.id
     assert claimed.stem_status == :running
 
     wav = Path.join(:code.priv_dir(:all_hands_sing_along), "static/audio/fixture.wav")
-    assert :ok = StemSeparator.complete_remote_job(song.id, wav, "no_vocals.wav")
+    assert :ok = StemSeparator.complete_remote_job(room.id, song.id, wav, "no_vocals.wav")
 
     {:ok, done} = Catalog.get_song(song.id)
     assert done.stem_status == :ok
     assert Catalog.playable?(done)
+  end
+
+  test "claim_remote_job/1 only returns songs from that room" do
+    room_a = Fixtures.room_fixture()
+    room_b = Fixtures.room_fixture()
+    Application.put_env(:all_hands_sing_along, :stem_available, false)
+
+    song_b =
+      Fixtures.song_fixture(room_b, %{
+        title: "Other Room",
+        original_path: Catalog.fixture_path(),
+        instrumental_path: nil
+      })
+
+    assert :ok = StemSeparator.enqueue(song_b.id)
+    assert :empty = StemSeparator.claim_remote_job(room_a.id)
+
+    {:ok, still} = Catalog.get_song(song_b.id)
+    assert still.stem_status == :queued
   end
 
   test "skips isolation when an instrumental is already attached" do

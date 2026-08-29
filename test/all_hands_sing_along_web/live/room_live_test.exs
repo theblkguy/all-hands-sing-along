@@ -551,6 +551,9 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, host_view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     assert has_element?(host_view, "#stem-worker-hint")
+    assert has_element?(host_view, "#stem-worker-command")
+    assert render(host_view) =~ "./script/worker --room #{room.code}"
+    assert render(host_view) =~ room.host_token
     assert has_element?(host_view, "#stem-progress-#{entry.id}")
     assert render(host_view) =~ "Waiting for your Mac to remove vocals"
 
@@ -561,6 +564,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, guest_view, _html} = live(guest_conn, ~p"/rooms/#{room.code}")
     refute has_element?(guest_view, "#stem-worker-hint")
+    refute render(guest_view) =~ room.host_token
   end
 
   defp host_conn(conn, room) do

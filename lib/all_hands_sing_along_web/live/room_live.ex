@@ -38,6 +38,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         |> assign(:changing_lyrics_id, nil)
         |> assign(:attaching_audio_id, nil)
         |> assign(:stem_local?, AllHandsSingAlong.Catalog.StemSeparator.local_available?())
+        |> assign(:host_token, if(host?, do: host_token, else: nil))
         |> allow_upload(:audio, accept: :any, max_entries: 1, max_file_size: 32_000_000)
         |> allow_upload(:lrc, accept: :any, max_entries: 1, max_file_size: 200_000)
         |> allow_upload(:instrumental, accept: :any, max_entries: 1, max_file_size: 32_000_000)
@@ -478,11 +479,13 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         >
           <p class="font-medium text-amber-100">Vocal isolation runs on your Mac</p>
           <p class="mt-1 text-white/70">
-            Keep this Terminal command running while people add songs:
-            <code class="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[13px] text-amber-50">
-              mix stems.worker
-            </code>
+            This command only processes <span class="font-medium text-white">this room</span>.
+            Other hosts run their own copy. Guests do not need it.
           </p>
+          <pre
+            id="stem-worker-command"
+            class="mt-2 overflow-x-auto rounded-lg bg-black/35 px-3 py-2 font-mono text-[13px] text-amber-50"
+          >./script/worker --room {@room.code} --token {@host_token}</pre>
         </div>
 
         <div class="flex flex-wrap items-end justify-between gap-4">

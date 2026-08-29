@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+if ! command -v brew >/dev/null 2>&1; then
+  echo "Homebrew is required. Install it, then open a new Terminal and re-run ./script/setup:"
+  echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+  exit 1
+fi
+
+echo "==> Installing Elixir, ffmpeg, Python, and git"
+brew install elixir ffmpeg python git
+
+if [[ -x /opt/homebrew/bin/python3 ]]; then
+  PYTHON=/opt/homebrew/bin/python3
+elif [[ -x /usr/local/bin/python3 ]]; then
+  PYTHON=/usr/local/bin/python3
+else
+  echo "Homebrew Python was not found. Install it with: brew install python"
+  exit 1
+fi
+
+if [[ ! -x .venv/bin/python ]]; then
+  echo "==> Creating .venv with $PYTHON"
+  "$PYTHON" -m venv .venv
+fi
+
+echo "==> Installing Demucs"
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install demucs numpy
+.venv/bin/python -c "import demucs; print('demucs ok')"
+
+if ! command -v mix >/dev/null 2>&1; then
+  echo "mix was not found. Open a new Terminal so Elixir is on your PATH, then re-run ./script/setup"
+  exit 1
+fi
+
+echo "==> Installing Elixir app"
+mix local.hex --force
+mix local.rebar --force
+mix setup
+
+echo
+echo "Setup complete."
+echo "  Hosted site: create a room, copy the host command, then ./script/worker --room … --token …"
+echo "  Local Wi-Fi:  ./script/server"

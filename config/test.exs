@@ -38,5 +38,3 @@ config :all_hands_sing_along, AllHandsSingAlong.Catalog.StemSeparator,
   adapter: AllHandsSingAlong.Catalog.StubStemAdapter,
   enabled: true,
   sync: true
-
-config :all_hands_sing_along, :stem_worker_token, "test-stem-worker-token"

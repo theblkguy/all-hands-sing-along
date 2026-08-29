@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+ROOM="${STEM_ROOM_CODE:-}"
+TOKEN="${STEM_WORKER_TOKEN:-}"
+URL="${STEM_SITE_URL:-}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --room)
+      ROOM="$2"
+      shift 2
+      ;;
+    --token)
+      TOKEN="$2"
+      shift 2
+      ;;
+    --url)
+      URL="$2"
+      shift 2
+      ;;
+    -h | --help)
+      echo "Usage: ./script/worker --room CODE --token HOST_TOKEN [--url https://all-hands-sing-along.fly.dev]"
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      echo "Usage: ./script/worker --room CODE --token HOST_TOKEN"
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$ROOM" || -z "$TOKEN" ]]; then
+  echo "Usage: ./script/worker --room CODE --token HOST_TOKEN"
+  echo "Create a room on the site and copy the command shown to the host."
+  exit 1
+fi
+
+if [[ ! -x .venv/bin/python ]] || ! .venv/bin/python -c "import demucs" >/dev/null 2>&1; then
+  echo "Demucs is not installed. Run ./script/setup first."
+  exit 1
+fi
+
+args=(stems.worker --room "$ROOM" --token "$TOKEN")
+if [[ -n "$URL" ]]; then
+  args+=(--url "$URL")
+fi
+
+exec mix "${args[@]}"

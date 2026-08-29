@@ -46,3 +46,6 @@ npm-debug.log
 /priv/static/uploads/*
 !/priv/static/uploads/.gitkeep
 
+# Local worker secret — never commit this
+/token.txt
+/token.tx

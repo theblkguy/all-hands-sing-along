@@ -50,9 +50,9 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   @spec retry(integer()) :: :ok | {:error, term()}
   def retry(song_id) when is_integer(song_id), do: enqueue(song_id)
 
-  @spec claim_remote_job() :: {:ok, Song.t()} | :empty
-  def claim_remote_job do
-    case next_queued_song() do
+  @spec claim_remote_job(integer()) :: {:ok, Song.t()} | :empty
+  def claim_remote_job(room_id) when is_integer(room_id) do
+    case next_queued_song(room_id) do
       nil ->
         :empty
 
@@ -76,56 +76,59 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
           Queue.broadcast_queue(claimed.room_id)
           {:ok, claimed}
         else
-          claim_remote_job()
+          claim_remote_job(room_id)
         end
     end
   end
 
-  @spec report_remote_progress(integer(), integer()) :: :ok | {:error, :not_found}
-  def report_remote_progress(song_id, pct) when is_integer(song_id) and is_integer(pct) do
-    case Repo.get(Song, song_id) do
-      nil ->
-        {:error, :not_found}
-
-      %Song{stem_status: :running} = song ->
+  @spec report_remote_progress(integer(), integer(), integer()) :: :ok | {:error, :not_found}
+  def report_remote_progress(room_id, song_id, pct)
+      when is_integer(room_id) and is_integer(song_id) and is_integer(pct) do
+    case song_in_room(room_id, song_id) do
+      {:ok, %Song{stem_status: :running} = song} ->
         report_progress(song, pct)
         :ok
 
-      _ ->
+      {:ok, _} ->
         :ok
+
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 
-  @spec complete_remote_job(integer(), String.t(), String.t()) ::
+  @spec complete_remote_job(integer(), integer(), String.t(), String.t()) ::
           :ok | {:error, term()}
-  def complete_remote_job(song_id, source_path, client_name)
-      when is_integer(song_id) and is_binary(source_path) and is_binary(client_name) do
-    case Repo.get(Song, song_id) do
-      nil ->
+  def complete_remote_job(room_id, song_id, source_path, client_name)
+      when is_integer(room_id) and is_integer(song_id) and is_binary(source_path) and
+             is_binary(client_name) do
+    case song_in_room(room_id, song_id) do
+      {:error, :not_found} ->
         {:error, :not_found}
 
-      %Song{stem_status: status} = song when status != :running ->
+      {:ok, %Song{stem_status: status} = song} when status != :running ->
         if Catalog.playable?(song), do: :ok, else: {:error, :not_running}
 
-      %Song{} = song ->
+      {:ok, %Song{} = song} ->
         with {:ok, url} <- Uploads.store_audio!(source_path, client_name) do
           finish_job(song.id, {:ok, url})
         end
     end
   end
 
-  @spec fail_remote_job(integer(), term()) :: :ok | {:error, :not_found}
-  def fail_remote_job(song_id, reason) when is_integer(song_id) do
-    case Repo.get(Song, song_id) do
-      nil ->
-        {:error, :not_found}
-
-      %Song{stem_status: :running} ->
+  @spec fail_remote_job(integer(), integer(), term()) :: :ok | {:error, :not_found}
+  def fail_remote_job(room_id, song_id, reason)
+      when is_integer(room_id) and is_integer(song_id) do
+    case song_in_room(room_id, song_id) do
+      {:ok, %Song{stem_status: :running}} ->
         finish_job(song_id, {:error, reason})
         :ok
 
-      _ ->
+      {:ok, _} ->
         :ok
+
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 
@@ -371,14 +374,22 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
 
   defp reason_to_error(_), do: :stem_failed
 
-  defp next_queued_song do
+  defp next_queued_song(room_id) do
     Song
+    |> where([s], s.room_id == ^room_id)
     |> where([s], s.stem_status == :queued)
     |> where([s], not is_nil(s.original_path) and s.original_path != "")
     |> where([s], is_nil(s.instrumental_path) or s.instrumental_path == "")
     |> order_by([s], asc: s.id)
     |> limit(1)
     |> Repo.one()
+  end
+
+  defp song_in_room(room_id, song_id) do
+    case Repo.get(Song, song_id) do
+      %Song{room_id: ^room_id} = song -> {:ok, song}
+      _ -> {:error, :not_found}
+    end
   end
 
   defp adapter_available? do
