@@ -3,8 +3,6 @@ defmodule AllHandsSingAlong.Catalog do
   @moduledoc """
   Songs and playable audio paths.
   """
-  import Ecto.Query
-
   alias AllHandsSingAlong.Catalog.Lyrics
   alias AllHandsSingAlong.Catalog.Song
   alias AllHandsSingAlong.Catalog.StemSeparator
@@ -198,14 +196,6 @@ defmodule AllHandsSingAlong.Catalog do
 
   def format_title(title, _) when is_binary(title), do: title
   def format_title(_, _), do: nil
-
-  @spec list_room_songs(integer()) :: [Song.t()]
-  def list_room_songs(room_id) when is_integer(room_id) do
-    Song
-    |> where([s], s.room_id == ^room_id)
-    |> order_by([s], desc: s.inserted_at)
-    |> Repo.all()
-  end
 
   defp maybe_mark_instrumental_ready(attrs) do
     path = Map.get(attrs, "instrumental_path")

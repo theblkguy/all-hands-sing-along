@@ -11,10 +11,6 @@ defmodule AllHandsSingAlongWeb.Router do
     plug :put_secure_browser_headers
   end
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
   scope "/", AllHandsSingAlongWeb do
     get "/health", HealthController, :show
     get "/uploads/:filename", UploadController, :show

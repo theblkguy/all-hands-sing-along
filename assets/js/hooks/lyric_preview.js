@@ -1,4 +1,5 @@
 import {createLyricRoll} from "../lyric_roll"
+import {createLyricTicker} from "../lyric_ticker"
 
 const LyricPreview = {
   mounted() {
@@ -6,12 +7,11 @@ const LyricPreview = {
     this.lyricLine = this.el.querySelector("#lyric-preview-line")
     this.outgoingLine = this.el.querySelector("#lyric-preview-line-outgoing")
     this.roll = createLyricRoll(this.lyricLine, this.outgoingLine)
+    this.ticker = createLyricTicker()
     this.lyrics = []
     this.offsetMs = 0
-    this.raf = null
 
-    this.tick = this.tick.bind(this)
-    this.onPlay = this.startTick.bind(this)
+    this.onPlay = () => this.startTick()
 
     if (this.audio) {
       this.audio.addEventListener("play", this.onPlay)
@@ -21,7 +21,7 @@ const LyricPreview = {
   },
 
   destroyed() {
-    this.stopTick()
+    this.ticker.stop()
     if (this.audio) {
       this.audio.removeEventListener("play", this.onPlay)
       this.audio.pause()
@@ -49,15 +49,12 @@ const LyricPreview = {
   },
 
   startTick() {
-    this.stopTick()
-    this.tick()
-  },
-
-  stopTick() {
-    if (this.raf) {
-      cancelAnimationFrame(this.raf)
-      this.raf = null
-    }
+    this.ticker.start(
+      () => this.audio && !this.audio.paused,
+      () => this.mediaPositionMs(),
+      this.roll,
+      () => this.lyrics
+    )
   },
 
   mediaPositionMs() {
@@ -66,22 +63,6 @@ const LyricPreview = {
       return Math.max(0, this.audio.currentTime * 1000 + offset)
     }
     return Math.max(0, offset)
-  },
-
-  tick() {
-    this.renderLyrics(this.mediaPositionMs())
-    if (this.audio && !this.audio.paused) {
-      this.raf = requestAnimationFrame(this.tick)
-    }
-  },
-
-  renderLyrics(positionMs) {
-    if (!this.roll) return
-    let current = {text: "", time_ms: 0}
-    for (const line of this.lyrics) {
-      if (line.time_ms <= positionMs) current = line
-    }
-    this.roll.show(current.text || "")
   }
 }
 

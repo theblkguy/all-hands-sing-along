@@ -23,9 +23,6 @@ defmodule AllHandsSingAlong.Queue.Entry do
     timestamps(type: :utc_datetime)
   end
 
-  @spec statuses() :: [status()]
-  def statuses, do: @statuses
-
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(entry, attrs) do
     entry

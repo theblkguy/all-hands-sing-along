@@ -13,6 +13,17 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     assert has_element?(view, "#how-it-works")
     assert html =~ "How it works"
     assert html =~ "Host hits Play"
+    assert has_element?(view, "#host-mac-setup")
+    assert has_element?(view, "#copy-setup-brew")
+    assert has_element?(view, "#copy-setup-clone")
+    assert html =~ "https://github.com/theblkguy/all-hands-sing-along.git"
+    assert html =~ "./script/setup"
+    assert has_element?(view, "#join-no-install")
+    refute has_element?(view, "#join-room-form #copy-setup-brew")
+    refute has_element?(view, "#join-room-form #copy-setup-clone")
+    join = view |> element("#join-room-form") |> render()
+    refute join =~ "Homebrew"
+    refute join =~ "Demucs"
   end
 
   test "POST host session creates a room and stores the token", %{conn: conn} do
