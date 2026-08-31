@@ -68,7 +68,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
                   put_flash(
                     socket,
                     :error,
-                    "Couldn't find timed lyrics for #{title} — #{artist}. Search below, fix the title, or paste an .lrc."
+                    "No timed lyrics for #{title} — #{artist}. Search below, or paste an .lrc."
                   )
                 end
 
@@ -106,7 +106,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
        |> stream(:queue, Queue.list_entries(socket.assigns.room.id), reset: true)}
     else
       false ->
-        {:noreply, put_flash(socket, :error, "You can only add audio to your own queue song")}
+        {:noreply, put_flash(socket, :error, "You can only add audio to your own song")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
@@ -118,7 +118,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
       {:ok, entry} ->
         cond do
           not can_attach_audio?(socket, entry) ->
-            {:noreply, put_flash(socket, :error, "You can only add audio to your own queue song")}
+            {:noreply, put_flash(socket, :error, "You can only add audio to your own song")}
 
           not Catalog.missing_audio?(entry.song) ->
             {:noreply, put_flash(socket, :error, "This song already has audio")}
@@ -176,8 +176,11 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
            {:ok, _} <- fun.(entry) do
         {:noreply, socket}
       else
-        {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Queue entry not found")}
-        {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
+        {:error, :not_found} ->
+          {:noreply, put_flash(socket, :error, "That song isn't in the queue")}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
       end
     end)
   end
@@ -232,7 +235,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
            socket
            |> assign(:attaching_audio_id, nil)
            |> stream(:queue, Queue.list_entries(socket.assigns.room.id), reset: true)
-           |> put_flash(:info, "Audio added")}
+           |> put_flash(:info, "Audio saved")}
         else
           {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
         end

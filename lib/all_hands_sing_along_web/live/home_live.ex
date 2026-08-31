@@ -43,14 +43,14 @@ defmodule AllHandsSingAlongWeb.HomeLive do
       <div class="space-y-10 pt-6">
         <div class="max-w-xl space-y-4">
           <p class="text-xs font-medium uppercase tracking-[0.28em] text-amber-100/70">
-            Zoom companion
+            Karaoke night
           </p>
           <h1 class="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
             All Hands Sing Song
           </h1>
           <p class="text-base leading-relaxed text-white/65">
-            One host runs the queue. Everyone opens this page so the song and lyrics stay in sync.
-            Stay on Zoom for faces. Use headphones.
+            Someone hosts. Everyone else opens this page for the songs and lyrics.
+            Stay on Zoom for faces, and wear headphones so the track doesn't leak into the call.
           </p>
         </div>
 
@@ -63,33 +63,33 @@ defmodule AllHandsSingAlongWeb.HomeLive do
               <.step_item n={1} class="size-8 text-sm" />
               <h3 class="mt-4 font-medium text-white">Host a room</h3>
               <p class="mt-2 text-sm leading-relaxed text-white/60">
-                Create a room and share the code so everyone lands in the same queue.
+                Make a room and send people the code.
               </p>
             </div>
             <div class="glass-panel rounded-3xl p-5 transition duration-200 hover:border-amber-200/25 hover:bg-white/[0.07]">
               <.step_item n={2} class="size-8 text-sm" />
-              <h3 class="mt-4 font-medium text-white">Add songs</h3>
+              <h3 class="mt-4 font-medium text-white">Add a song</h3>
               <p class="mt-2 text-sm leading-relaxed text-white/60">
-                Anyone can join the queue with a title and artist. Audio is optional.
+                Put your name on a title and artist. You can add audio now or later.
               </p>
             </div>
             <div class="glass-panel rounded-3xl p-5 transition duration-200 hover:border-amber-200/25 hover:bg-white/[0.07]">
               <.step_item n={3} class="size-8 text-sm" />
               <h3 class="mt-4 font-medium text-white">Host hits Play</h3>
               <p class="mt-2 text-sm leading-relaxed text-white/60">
-                When a song is Ready, the host starts the singer. Headphones on. Zoom for faces.
+                When a song is Ready, the host starts the singer.
               </p>
             </div>
           </div>
         </section>
 
         <p id="host-mac-setup" class="text-sm leading-relaxed text-white/55">
-          Hosts who want vocal isolation on a Mac: see <a
+          Want vocals stripped? First-time setup is in <a
             href="https://github.com/theblkguy/all-hands-sing-along#host-strip-vocals-with-demucs"
             class="text-amber-100/90 underline decoration-amber-100/30 underline-offset-4 transition hover:text-white"
           >
             the README
-          </a>.
+          </a>. Then, in the room, show the Mac command and run it from the project folder.
         </p>
 
         <div class="grid gap-6 md:grid-cols-2">
@@ -118,7 +118,7 @@ defmodule AllHandsSingAlongWeb.HomeLive do
           >
             <h2 class="text-lg font-medium text-white">Join a room</h2>
             <p id="join-no-install" class="text-sm leading-relaxed text-white/55">
-              No install. Ask the host for the room code.
+              Just the room code. Nothing to install.
             </p>
             <.input field={@join_form[:display_name]} label="Your name" />
             <.input field={@join_form[:code]} label="Room code" />

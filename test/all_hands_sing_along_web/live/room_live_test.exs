@@ -80,7 +80,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     assert has_element?(view, "#onboarding-overlay")
     assert has_element?(view, "#onboarding-title", "You're in the room")
     overlay = view |> element("#onboarding-overlay") |> render()
-    assert overlay =~ "does not drive the room clock"
+    assert overlay =~ "change the room"
     assert overlay =~ "In the room"
     refute overlay =~ "You&#39;re hosting"
     refute overlay =~ "clearing cookies"
@@ -101,7 +101,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     view |> element("#open-onboarding") |> render_click()
     assert has_element?(view, "#onboarding-worker-note")
-    assert render(view) =~ "Vocal isolation runs on your Mac"
+    assert render(view) =~ "Start the worker on your Mac"
   end
 
   test "host play starts the fixture track", %{conn: conn} do
@@ -228,7 +228,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     room = Fixtures.room_fixture()
     {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
     html = render_click(view, "play", %{})
-    assert html =~ "Host only"
+    assert html =~ "Only the host can do that"
   end
 
   test "guest can add to the queue with title and artist", %{conn: conn} do
@@ -368,7 +368,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
         original_path: AllHandsSingAlong.Catalog.fixture_path(),
         instrumental_path: nil,
         stem_status: :failed,
-        stem_error: "Vocal isolation isn’t installed on this machine"
+        stem_error: "Can't strip vocals yet. Run setup on this Mac."
       })
 
     entry =
@@ -376,7 +376,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     assert has_element?(view, "#stem-failed-#{entry.id}")
-    assert render(view) =~ "Vocal isolation isn’t installed on this machine"
+    assert render(view) =~ "strip vocals yet. Run setup on this Mac."
     assert has_element?(view, "#retry-stems-#{entry.id}")
 
     view |> element("#retry-stems-#{entry.id}") |> render_click()
@@ -451,9 +451,9 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     assert has_element?(view, "#lyric-preview-card")
     assert has_element?(view, "#lyric-preview-title", "Align Me — Test Artist")
     assert has_element?(view, "#singer-muted-note")
-    refute has_element?(view, "#playback-mode", "Singer (backing track)")
+    refute has_element?(view, "#playback-mode", "Backing track")
     assert has_element?(view, "#skip-song")
-    assert has_element?(view, "#now-playing-title", "Nothing yet")
+    assert has_element?(view, "#now-playing-title", "Nothing playing yet")
 
     view |> element("#preview-lyrics-earlier") |> render_click()
     assert has_element?(view, "#lyric-preview-offset", "Lyrics 0.1s earlier")
@@ -464,7 +464,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     view |> element("#start-singer") |> render_click()
     refute has_element?(view, "#lyric-preview-card")
-    assert has_element?(view, "#playback-mode", "Singer (backing track)")
+    assert has_element?(view, "#playback-mode", "Backing track")
     assert has_element?(view, "#skip-song")
 
     {:ok, singing} = Queue.get_entry(entry.id)
@@ -512,7 +512,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
     refute has_element?(view, "#tune-lyrics-#{entry.id}")
     html = render_click(view, "tune_lyrics", %{"id" => to_string(entry.id)})
-    assert html =~ "Host only"
+    assert html =~ "Only the host can do that"
   end
 
   test "host can search and pick replacement lyrics on a ready song", %{conn: conn} do
@@ -596,7 +596,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
     refute has_element?(view, "#change-lyrics-#{entry.id}")
     html = render_click(view, "toggle_change_lyrics", %{"id" => to_string(entry.id)})
-    assert html =~ "Host only"
+    assert html =~ "Only the host can do that"
   end
 
   test "room URL includes the join code", %{conn: conn} do
@@ -632,12 +632,12 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     assert has_element?(host_view, "#stem-worker-command")
     assert has_element?(host_view, "#copy-stem-worker")
-    assert render(host_view) =~ "./script/setup"
+    assert render(host_view) =~ "README setup"
     assert render(host_view) =~ "./script/worker --room #{room.code}"
     assert render(host_view) =~ room.host_token
     refute has_element?(host_view, "#reveal-worker-command")
     assert has_element?(host_view, "#stem-progress-#{entry.id}")
-    assert render(host_view) =~ "Waiting for your Mac to remove vocals"
+    assert render(host_view) =~ "Waiting on your Mac"
 
     guest_conn =
       conn

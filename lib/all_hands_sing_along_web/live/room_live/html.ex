@@ -46,13 +46,13 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
     ~H"""
     <div
       class="glass-panel flex items-center gap-3 rounded-full px-4 py-2 text-sm text-amber-100/80"
-      title="Use headphones so the backing track does not leak into Zoom."
+      title="Headphones keep the track out of Zoom."
     >
       <.icon name="hero-speaker-x-mark" class="size-5 shrink-0 text-amber-200" />
       <span class="sr-only">
-        Use headphones so the backing track does not leak into Zoom.
+        Headphones keep the track out of Zoom.
       </span>
-      <span class="hidden sm:inline">Headphones on. Keep the mix out of Zoom.</span>
+      <span class="hidden sm:inline">Headphones keep the track out of Zoom.</span>
     </div>
     """
   end
@@ -64,11 +64,10 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
   defp stem_worker_hint(assigns) do
     ~H"""
     <div id="stem-worker-hint" class="glass-panel rounded-2xl px-4 py-3 text-sm text-amber-100/85">
-      <p class="font-medium text-amber-100">Vocal isolation runs on your Mac</p>
+      <p class="font-medium text-amber-100">Start the worker on your Mac</p>
       <p class="mt-1 text-white/70">
-        Run this after <span class="font-medium text-white">./script/setup</span>, from the
-        project folder. It only processes <span class="font-medium text-white">this room</span>.
-        Other hosts run their own copy. Guests do not need it.
+        This strips vocals for this room only. After the README setup, copy the command and run it
+        from the project folder. Leave that Terminal open. Guests don't need it.
       </p>
       <.button
         :if={not @show_command?}
@@ -77,7 +76,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         phx-click="reveal_worker_command"
         class="btn btn-sm mt-3"
       >
-        Show Mac worker command
+        Show Mac command
       </.button>
       <.copy_snippet
         :if={@show_command? and is_binary(@host_token)}
@@ -131,7 +130,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           <.icon_button id="pause-song" icon="hero-pause" label="Pause" phx-click="pause" />
           <.icon_button id="skip-song" icon="hero-forward" label="Skip" phx-click="skip" />
         </div>
-        <p class="text-xs text-white/45">Backing track, no vocals</p>
+        <p class="text-xs text-white/45">Backing track</p>
       </div>
     </div>
     """
@@ -162,7 +161,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         id="guest-playback-hint"
         class="text-sm text-white/55"
       >
-        The host starts the singer when a song is Ready.
+        The host will start the song when it's Ready.
       </p>
       <p :if={@playback && @playback.singer_name} id="now-playing-singer" class="text-white/60">
         {@playback.singer_name}
@@ -189,7 +188,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         id="singer-muted-note"
         class="text-sm text-amber-100/70"
       >
-        Singer track is muted in your headphones while you tune the next song.
+        Your headphones are muted on this song while you check the next one.
       </p>
     </div>
     """
@@ -203,7 +202,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p class="text-xs font-medium uppercase tracking-[0.28em] text-white/45">
-            Tune next song
+            Next song
           </p>
           <p id="lyric-preview-title" class="mt-1 text-xl font-medium text-white">
             {Catalog.format_title(@lyric_preview.title, @lyric_preview.artist)}
@@ -217,7 +216,9 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           phx-click="close_lyric_preview"
         />
       </div>
-      <p class="text-sm text-white/55">Original mix (vocals on). Guests still hear the singer.</p>
+      <p class="text-sm text-white/55">
+        This is the original, vocals on. Everyone else still hears the singer.
+      </p>
       <.lyric_stage
         id="lyric-preview"
         hook="LyricPreview"
@@ -267,7 +268,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
       >
         <h3 class="font-medium text-white">Add a song</h3>
         <p id="add-song-hint" class="text-sm leading-relaxed text-white/55">
-          Lyrics are fetched automatically. You can upload audio now or after you join the queue.
+          We'll look up lyrics. Audio can wait.
         </p>
         <.input field={@song_form[:title]} id="song-title" label="Song title" />
         <.input field={@song_form[:artist]} id="song-artist" label="Artist" />
@@ -295,7 +296,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           id="queue-empty"
           class="hidden only:block glass-panel rounded-2xl px-5 py-8 text-center text-sm text-white/55"
         >
-          No singers yet. Add a song below.
+          Nobody's up yet. Add a song.
         </li>
         <.queue_item
           :for={{dom_id, entry} <- @streams.queue}
@@ -337,14 +338,14 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
               id={"no-audio-#{@entry.id}"}
               class="text-sm text-warning"
             >
-              No song file yet. Upload one if you joined the queue first.
+              No audio yet. Upload a file.
             </p>
             <p
               :if={@entry.status == :preparing and not Catalog.has_lyrics?(@entry.song)}
               id={"no-lyrics-#{@entry.id}"}
               class="text-sm text-warning"
             >
-              Couldn't find timed lyrics. Search with a fuller title, or paste an .lrc.
+              No timed lyrics. Try a fuller title, or paste an .lrc.
             </p>
             <p
               :if={Catalog.stem_in_progress?(@entry.song)}
@@ -365,7 +366,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
               id={"stem-failed-#{@entry.id}"}
               class="text-sm text-warning"
             >
-              {@entry.song.stem_error || "Couldn't remove vocals."}
+              {@entry.song.stem_error || "Couldn't strip the vocals."}
             </p>
           </div>
           <span class="rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] uppercase tracking-wider text-white/60">
@@ -451,7 +452,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           <.icon_button
             id={"use-original-#{@entry.id}"}
             icon="hero-speaker-wave"
-            label="Use original anyway"
+            label="Play original"
             phx-click="use_original"
             phx-value-id={@entry.id}
           />
@@ -460,7 +461,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           :if={@host? and can_preview_lyrics?(@entry)}
           id={"tune-lyrics-#{@entry.id}"}
           icon="hero-adjustments-horizontal"
-          label="Tune lyrics"
+          label="Line up lyrics"
           phx-click="tune_lyrics"
           phx-value-id={@entry.id}
         />
@@ -675,7 +676,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
     Catalog.format_title(title, Map.get(playback, :artist))
   end
 
-  defp playback_heading(_), do: "Nothing yet — host can start the singer or demo track"
+  defp playback_heading(_), do: "Nothing playing yet"
 
   defp playback_empty?(nil), do: true
   defp playback_empty?(%{title: title}) when is_binary(title) and title != "", do: false
@@ -684,9 +685,9 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
   defp playback_mode(%{mode: :singing}), do: :singing
   defp playback_mode(_), do: nil
 
-  defp playback_mode_label(%{mode: :singing}), do: "Singer (backing track)"
+  defp playback_mode_label(%{mode: :singing}), do: "Backing track"
 
-  defp stem_progress_label(%{stem_status: :queued}), do: "Waiting for your Mac to remove vocals…"
+  defp stem_progress_label(%{stem_status: :queued}), do: "Waiting on your Mac…"
 
   defp stem_progress_label(%{stem_status: :running, stem_progress: pct}) when is_integer(pct) do
     "Removing vocals #{pct}%"

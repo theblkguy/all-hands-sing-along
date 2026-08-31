@@ -1,16 +1,16 @@
 # All Hands Sing Song
 
-Karaoke companion for all-hands. Zoom is for faces. This app syncs a backing track, timed lyrics, and a singer queue.
+Karaoke for the all-hands. Zoom is still the call. This page keeps the track, lyrics, and queue together.
 
-One person **hosts**. Everyone else opens the same room. Use headphones so the mix does not leak into the call.
+One person **hosts**. Everyone else opens the same room. Wear headphones so the mix doesn't leak into Zoom.
 
 Live site: [all-hands-sing-along.fly.dev](https://all-hands-sing-along.fly.dev)
 
-**Singers never clone this repo.** They open the URL, type a name and room code, and join. Only the host installs anything, and only if they want the Mac to strip vocals.
+**Singers don't clone this repo.** Open the URL, type a name and room code, and join. Only the host installs anything, and only if they want the Mac to strip vocals.
 
 | You are | What you install |
 | --- | --- |
-| Joining a room | Nothing. A browser. |
+| Joining a room | Nothing — just a browser. |
 | Hosting on the live site | Homebrew + this repo once, so Demucs can strip vocals |
 | Running the app on your Mac | Same one-time setup, then `./script/server` |
 
@@ -24,9 +24,9 @@ Guests: open [all-hands-sing-along.fly.dev](https://all-hands-sing-along.fly.dev
 
 ### Host: strip vocals with Demucs
 
-The live site does not run Demucs (it is too heavy for a small cloud VM). **Your Mac** does it, for **your room only**. One-time install, about 15–30 minutes. After that, each session is one Terminal command.
+The live site doesn't run Demucs (too heavy for a small cloud VM). **Your Mac** does it, for **your room only**. First setup takes a while (Homebrew, Demucs). After that, each session is one Terminal command.
 
-You can skip this and still host: attach a karaoke file, or use **Use original anyway**.
+You can skip this and still host: attach a karaoke file, or **Play original**.
 
 #### 1. Homebrew (skip if `brew --version` works)
 
@@ -48,12 +48,12 @@ That installs Homebrew Python, Demucs, ffmpeg, and Elixir into this folder. Safe
 
 Elixir and OTP versions are pinned in `.tool-versions` (asdf: Erlang 27.3, Elixir 1.18.4). The Dockerfile uses the same pair.
 
-Nobody else in the all-hands does this. One Mac, one clone.
+Only one Mac needs this. Everyone else just joins in the browser.
 
 #### 3. Create a room, then start the worker
 
 1. Open the [live site](https://all-hands-sing-along.fly.dev) and **Create room**.
-2. Copy the command shown on the room page (click **Show Mac worker command**). It looks like:
+2. On the room page, click **Show Mac command**. It looks like:
 
 ```sh
 ./script/worker --room ABC123 --token YOUR_HOST_TOKEN
@@ -119,17 +119,17 @@ Use the same browser for the whole session — the host cookie lives there.
 ### Host checklist
 
 - Keep the worker (live site) or server (local) Terminal running, and keep the host browser tab open.
-- Headphones on. Zoom (or Meet) for faces only.
+- Wear headphones. Zoom (or Meet) is for faces.
 - Do not clear this site’s cookies mid-session or you will lose host controls.
 - Prevent sleep, or plug in and keep the lid open.
 
 ### If a song is stuck on Preparing
 
-- **No song file yet** — upload mp3 / wav / m4a / ogg.
-- **Couldn't find timed lyrics** — search with a fuller title, pick a result, or paste an `.lrc`.
-- **Waiting for your Mac** — run the host command from the room page (`./script/worker …`).
-- **Removing vocals…** — wait, or **Cancel** / **Use original anyway**.
-- Host can **Attach instrumental** if you already have a karaoke file.
+- **No audio yet** — upload mp3 / wav / m4a / ogg.
+- **No timed lyrics** — try a fuller title, pick a result, or paste an `.lrc`.
+- **Waiting on your Mac…** — run the host command from the room page (`./script/worker …`).
+- **Removing vocals…** — wait, or **Cancel** / **Play original**.
+- If you already have a karaoke file, upload it and **Play original**.
 
 ---
 
@@ -177,7 +177,7 @@ fly secrets set SECRET_KEY_BASE="$(mix phx.gen.secret)"
 fly deploy
 ```
 
-Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room code, then run the vocal isolation command from the room page on your Mac.
+Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room code, then start the worker from the room page on your Mac.
 
 If you use a custom domain, set `PHX_HOST` to that domain in `fly.toml`.
 

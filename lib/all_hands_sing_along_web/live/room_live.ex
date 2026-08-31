@@ -110,7 +110,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
        |> assign(:show_worker_command?, true)
        |> assign(:host_token, Auth.host_token(socket))}
     else
-      {:noreply, put_flash(socket, :error, "Host only")}
+      {:noreply, put_flash(socket, :error, "Only the host can do that")}
     end
   end
 

@@ -9,7 +9,7 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     assert html =~ "All Hands Sing Song"
     assert html =~ "Host a room"
     assert html =~ "Join a room"
-    assert html =~ "Zoom companion"
+    assert html =~ "Karaoke night"
     assert has_element?(view, "#how-it-works")
     assert html =~ "How it works"
     assert html =~ "Host hits Play"

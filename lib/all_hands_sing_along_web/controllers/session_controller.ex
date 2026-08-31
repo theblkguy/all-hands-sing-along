@@ -23,12 +23,12 @@ defmodule AllHandsSingAlongWeb.SessionController do
 
           {:error, :code_collision} ->
             conn
-            |> put_flash(:error, "Could not create a room. Try again.")
+            |> put_flash(:error, "Couldn't create a room. Try again.")
             |> redirect(to: ~p"/")
 
           {:error, _changeset} ->
             conn
-            |> put_flash(:error, "Could not create a room. Try again.")
+            |> put_flash(:error, "Couldn't create a room. Try again.")
             |> redirect(to: ~p"/")
         end
 

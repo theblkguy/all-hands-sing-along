@@ -364,16 +364,16 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
     :ok
   end
 
-  defp error_message(:not_installed), do: "Vocal isolation isn’t installed on this machine"
+  defp error_message(:not_installed), do: "Can't strip vocals yet. Run setup on this Mac."
 
   defp error_message(:missing_numpy),
-    do: "Vocal isolation is missing NumPy. Run .venv/bin/python -m pip install numpy"
+    do: "Can't strip vocals: NumPy is missing. Re-run ./script/setup."
 
   defp error_message(:missing_ffmpeg),
-    do: "Vocal isolation needs ffmpeg to mix a quiet guide vocal"
+    do: "Need ffmpeg to mix a quiet guide vocal."
 
-  defp error_message(:missing_audio), do: "Original audio is missing"
-  defp error_message(_), do: "Couldn't remove vocals"
+  defp error_message(:missing_audio), do: "The song file is missing"
+  defp error_message(_), do: "Couldn't strip the vocals"
 
   defp reason_to_error(_), do: :stem_failed
 

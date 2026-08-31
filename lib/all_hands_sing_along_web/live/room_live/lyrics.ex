@@ -62,7 +62,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
 
         {:noreply, restream_queue(socket)}
       else
-        false -> {:noreply, put_flash(socket, :error, "Host only")}
+        false -> {:noreply, put_flash(socket, :error, "Only the host can do that")}
         {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
       end
     end)
@@ -94,7 +94,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
               %{
                 entry_id: entry.id,
                 results: [],
-                error: "No matches. Try another spelling or paste an .lrc file."
+                error: "No matches. Try another spelling, or paste an .lrc."
               }
             else
               %{entry_id: entry.id, results: hits, error: nil}
@@ -120,7 +120,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
       {:noreply,
        socket
        |> finish_lyric_edit(entry)
-       |> put_flash(:info, "Lyrics attached")}
+       |> put_flash(:info, "Lyrics saved")}
     else
       nil -> {:noreply, put_flash(socket, :error, "Add the song to the queue first")}
       {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
@@ -136,7 +136,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
       {:noreply,
        socket
        |> finish_lyric_edit(entry)
-       |> put_flash(:info, "Lyrics attached")}
+       |> put_flash(:info, "Lyrics saved")}
     else
       {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
     end
