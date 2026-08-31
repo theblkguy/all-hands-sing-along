@@ -38,6 +38,11 @@ if ! command -v mix >/dev/null 2>&1; then
 fi
 
 echo "==> Installing Elixir app"
+if [[ ! -f config/dev.secrets.exs ]]; then
+  cp config/dev.secrets.exs.example config/dev.secrets.exs
+  echo "Copied config/dev.secrets.exs.example → config/dev.secrets.exs"
+  echo "Replace secret_key_base with: mix phx.gen.secret"
+fi
 mix local.hex --force
 mix local.rebar --force
 mix setup

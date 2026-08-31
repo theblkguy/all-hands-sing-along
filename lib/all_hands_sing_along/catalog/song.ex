@@ -45,6 +45,8 @@ defmodule AllHandsSingAlong.Catalog.Song do
       :stem_status,
       :stem_error
     ])
+    |> update_change(:title, &blank_to_nil/1)
+    |> update_change(:artist, &blank_to_nil/1)
     |> validate_required([:title, :artist])
     |> validate_length(:title, min: 1, max: 200)
     |> validate_length(:artist, min: 1, max: 200)
@@ -56,5 +58,14 @@ defmodule AllHandsSingAlong.Catalog.Song do
     )
     |> validate_number(:stem_progress, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
     |> foreign_key_constraint(:room_id)
+  end
+
+  defp blank_to_nil(nil), do: nil
+
+  defp blank_to_nil(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 end

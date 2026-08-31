@@ -32,6 +32,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         :if={@host? and not @stem_local?}
         room_code={@room.code}
         host_token={@host_token}
+        show_command?={@show_worker_command?}
       />
       <.room_header room={@room} host?={@host?} display_name={@display_name} />
       <.now_playing host?={@host?} playback={@playback} lyric_preview={@lyric_preview} />
@@ -57,7 +58,8 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
   end
 
   attr :room_code, :string, required: true
-  attr :host_token, :string, required: true
+  attr :host_token, :string, default: nil
+  attr :show_command?, :boolean, default: false
 
   defp stem_worker_hint(assigns) do
     ~H"""
@@ -68,7 +70,17 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         project folder. It only processes <span class="font-medium text-white">this room</span>.
         Other hosts run their own copy. Guests do not need it.
       </p>
+      <.button
+        :if={not @show_command?}
+        id="reveal-worker-command"
+        type="button"
+        phx-click="reveal_worker_command"
+        class="btn btn-sm mt-3"
+      >
+        Show Mac worker command
+      </.button>
       <.copy_snippet
+        :if={@show_command? and is_binary(@host_token)}
         id="copy-stem-worker"
         pre_id="stem-worker-command"
         text={"./script/worker --room #{@room_code} --token #{@host_token}"}
@@ -247,7 +259,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
       <h2 class="text-lg font-medium text-white">Queue</h2>
 
       <.form
-        for={%{}}
+        for={@song_form}
         id="add-queue-form"
         phx-change="validate_queue"
         phx-submit="add_to_queue"
@@ -257,16 +269,22 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         <p id="add-song-hint" class="text-sm leading-relaxed text-white/55">
           Lyrics are fetched automatically. You can upload audio now or after you join the queue.
         </p>
-        <.input id="song-title" name="song_title" label="Song title" value={@song_title} required />
-        <.input id="song-artist" name="song_artist" label="Artist" value={@song_artist} required />
+        <.input field={@song_form[:title]} id="song-title" label="Song title" />
+        <.input field={@song_form[:artist]} id="song-artist" label="Artist" />
         <div>
           <p class="label mb-1">Audio (optional)</p>
+          <p id="audio-types-hint" class="mb-1 text-xs text-white/45">
+            mp3, wav, m4a, or ogg. Max 32 MB.
+          </p>
           <.live_file_input upload={@uploads.audio} class="file-input file-input-bordered w-full" />
+          <.error :for={err <- all_upload_errors(@uploads.audio)}>{upload_error_text(err)}</.error>
           <.upload_progress id="audio-upload-progress" entries={@uploads.audio.entries} />
         </div>
         <div>
           <p class="label mb-1">Lyrics .lrc (optional)</p>
+          <p id="lrc-types-hint" class="mb-1 text-xs text-white/45">.lrc, max 200 KB.</p>
           <.live_file_input upload={@uploads.lrc} class="file-input file-input-bordered w-full" />
+          <.error :for={err <- all_upload_errors(@uploads.lrc)}>{upload_error_text(err)}</.error>
           <.upload_progress id="lrc-upload-progress" entries={@uploads.lrc.entries} />
         </div>
         <.button type="submit" variant="primary">Add me to the queue</.button>
@@ -404,6 +422,8 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           >
             <input type="hidden" name="entry_id" value={@entry.id} />
             <.live_file_input upload={@late_audio} class="file-input file-input-bordered w-full" />
+            <p class="text-xs text-white/45">mp3, wav, m4a, or ogg. Max 32 MB.</p>
+            <.error :for={err <- all_upload_errors(@late_audio)}>{upload_error_text(err)}</.error>
             <.upload_progress
               id={"late-audio-progress-#{@entry.id}"}
               entries={@late_audio.entries}
@@ -698,4 +718,14 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
   defp stem_retry_label(song) do
     if Catalog.stem_failed?(song), do: "Retry", else: "Remove vocals"
   end
+
+  defp all_upload_errors(upload) do
+    upload_errors(upload) ++
+      Enum.flat_map(upload.entries, &upload_errors(upload, &1))
+  end
+
+  defp upload_error_text(:too_large), do: "That file is too large"
+  defp upload_error_text(:not_accepted), do: "Unsupported audio type"
+  defp upload_error_text(:too_many_files), do: "Only one file at a time"
+  defp upload_error_text(_), do: "Upload failed"
 end

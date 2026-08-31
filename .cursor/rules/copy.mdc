@@ -1,0 +1,11 @@
+---
+description: Do not invent product copy; no bash on the homepage
+alwaysApply: true
+---
+
+# Copy
+
+- Do not invent product or marketing copy. Relocate or delete; the human writes replacement voice.
+- No copy-pasteable bash or curl-pipe on the homepage. Setup commands belong in the README.
+- Prefer short, specific UI strings. Do not generate “companion / seamless / one-time about 15–30 minutes” tone.
+- Do not add “world-class / delightful / premium” language to docs or UI.

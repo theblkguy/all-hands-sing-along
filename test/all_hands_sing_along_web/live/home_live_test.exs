@@ -14,20 +14,18 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     assert html =~ "How it works"
     assert html =~ "Host hits Play"
     assert has_element?(view, "#host-mac-setup")
-    assert has_element?(view, "#copy-setup-brew")
-    assert has_element?(view, "#copy-setup-clone")
-    assert html =~ "https://github.com/theblkguy/all-hands-sing-along.git"
-    assert html =~ "./script/setup"
+    refute has_element?(view, "#copy-setup-brew")
+    refute has_element?(view, "#copy-setup-clone")
+    refute html =~ "https://github.com/theblkguy/all-hands-sing-along.git"
+    assert html =~ "the README"
     assert has_element?(view, "#join-no-install")
-    refute has_element?(view, "#join-room-form #copy-setup-brew")
-    refute has_element?(view, "#join-room-form #copy-setup-clone")
     join = view |> element("#join-room-form") |> render()
     refute join =~ "Homebrew"
     refute join =~ "Demucs"
   end
 
   test "POST host session creates a room and stores the token", %{conn: conn} do
-    conn = post(conn, ~p"/session/host", %{"display_name" => "Ada"})
+    conn = post(conn, ~p"/session/host", %{"host" => %{"display_name" => "Ada"}})
     path = redirected_to(conn)
     assert path =~ "/rooms/"
     assert get_session(conn, :display_name) == "Ada"
@@ -39,16 +37,27 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
   end
 
   test "POST join session requires a real room", %{conn: conn} do
-    conn = post(conn, ~p"/session/join", %{"display_name" => "Sam", "code" => "ZZZZZZ"})
+    conn =
+      post(conn, ~p"/session/join", %{"join" => %{"display_name" => "Sam", "code" => "ZZZZZZ"}})
+
     assert redirected_to(conn) == ~p"/"
     assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Room not found"
   end
 
   test "POST join session enters an existing room", %{conn: conn} do
     {:ok, room} = Rooms.create_room()
-    conn = post(conn, ~p"/session/join", %{"display_name" => "Sam", "code" => room.code})
+
+    conn =
+      post(conn, ~p"/session/join", %{"join" => %{"display_name" => "Sam", "code" => room.code}})
+
     assert redirected_to(conn) == ~p"/rooms/#{room.code}"
     assert get_session(conn, :display_name) == "Sam"
     assert get_session(conn, :host_tokens) in [nil, %{}]
+  end
+
+  test "POST host session requires a name", %{conn: conn} do
+    conn = post(conn, ~p"/session/host", %{"host" => %{"display_name" => "  "}})
+    assert redirected_to(conn) == ~p"/"
+    assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "display_name"
   end
 end

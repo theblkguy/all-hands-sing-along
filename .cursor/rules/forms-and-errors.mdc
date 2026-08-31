@@ -1,0 +1,30 @@
+---
+description: Forms use to_form + changesets; field errors via <.error>; bound uploads
+globs: lib/**/*.{ex,heex}
+alwaysApply: false
+---
+
+# Forms and errors
+
+User input goes through `to_form/2` and an Ecto changeset. Render field errors with `<.input>` (which uses public `<.error>`). Flash is for cross-cutting outcomes, not a substitute for field validation.
+
+```elixir
+# BAD
+<.form for={%{}} as={:guest}>
+  <.input name="display_name" value="" />
+</.form>
+# then put_flash(:error, "Name is required")
+
+# GOOD
+assign(socket, form: to_form(changeset, as: :song))
+# template: <.form for={@form} id="queue-form"> <.input field={@form[:title]} />
+```
+
+LiveView uploads:
+
+- Whitelist `accept` (never `:any`)
+- Set `max_file_size`
+- Show allowed types and size next to the input
+- Handle `upload_errors/2` on `phx-change` — do not no-op validate handlers
+
+Bound collections (per-room caps). Do not allow unbounded file append onto disk or object storage.

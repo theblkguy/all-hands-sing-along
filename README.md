@@ -46,12 +46,14 @@ cd all-hands-sing-along
 
 That installs Homebrew Python, Demucs, ffmpeg, and Elixir into this folder. Safe to re-run. If it says `mix` was not found, open a **new** Terminal so Elixir is on your PATH, then run `./script/setup` again.
 
+Elixir and OTP versions are pinned in `.tool-versions` (asdf: Erlang 27.3, Elixir 1.18.4). The Dockerfile uses the same pair.
+
 Nobody else in the all-hands does this. One Mac, one clone.
 
 #### 3. Create a room, then start the worker
 
 1. Open the [live site](https://all-hands-sing-along.fly.dev) and **Create room**.
-2. Copy the command shown on the room page. It looks like:
+2. Copy the command shown on the room page (click **Show Mac worker command**). It looks like:
 
 ```sh
 ./script/worker --room ABC123 --token YOUR_HOST_TOKEN
@@ -158,7 +160,17 @@ fly volumes create data --size 3 --region iad --app your-unique-name
 
 Skip `--app` if you kept the default name.
 
-### 3. Set the secret and deploy
+### 3. Object storage (Tigris)
+
+Audio should not live on the Fly volume. Create a Tigris bucket (sets AWS_* secrets on the app):
+
+```sh
+fly storage create
+```
+
+That provides `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, and `BUCKET_NAME`. The app uses those at runtime. The `/data` volume stays for SQLite only.
+
+### 4. Set the secret and deploy
 
 ```sh
 fly secrets set SECRET_KEY_BASE="$(mix phx.gen.secret)"
@@ -175,7 +187,7 @@ If the app name is not `all-hands-sing-along`, pass the URL to the worker:
 ./script/worker --room … --token … --url https://your-app.fly.dev
 ```
 
-### 4. Useful commands
+### 5. Useful commands
 
 ```sh
 fly status

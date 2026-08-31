@@ -3,9 +3,12 @@ defmodule AllHandsSingAlong.Catalog do
   @moduledoc """
   Songs and playable audio paths.
   """
+  import Ecto.Query
+
   alias AllHandsSingAlong.Catalog.Lyrics
   alias AllHandsSingAlong.Catalog.Song
   alias AllHandsSingAlong.Catalog.StemSeparator
+  alias AllHandsSingAlong.Catalog.Uploads
   alias AllHandsSingAlong.Repo
   alias AllHandsSingAlong.Rooms.Room
 
@@ -62,29 +65,46 @@ defmodule AllHandsSingAlong.Catalog do
   end
 
   @spec create_prepared_song(Room.t(), map()) ::
-          {:ok, Song.t()} | {:error, Ecto.Changeset.t()}
+          {:ok, Song.t()} | {:error, Ecto.Changeset.t() | term()}
   def create_prepared_song(%Room{} = room, attrs) when is_map(attrs) do
     with {:ok, song} <- create_song(room, attrs) do
-      {:ok, maybe_attach_lyrics(song)}
+      case maybe_attach_lyrics(song) do
+        {:ok, song} -> {:ok, song}
+        {:error, :not_found} -> {:ok, song}
+        {:error, :no_synced_lyrics} -> {:ok, song}
+        {:error, :ambiguous} -> {:ok, song}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
-  @spec maybe_attach_lyrics(Song.t()) :: Song.t()
+  @spec maybe_attach_lyrics(Song.t()) :: {:ok, Song.t()} | {:error, term()}
   def maybe_attach_lyrics(%Song{} = song) do
     if has_lyrics?(song) do
-      song
+      {:ok, song}
     else
       case Lyrics.resolve(song.artist, song.title) do
-        {:ok, lrc} ->
-          case update_song(song, %{lrc_text: lrc}) do
-            {:ok, updated} -> updated
-            {:error, _} -> song
-          end
-
-        {:error, _} ->
-          song
+        {:ok, lrc} -> update_song(song, %{lrc_text: lrc})
+        {:error, reason} -> {:error, reason}
       end
     end
+  end
+
+  @spec count_audio_files(Room.t()) :: non_neg_integer()
+  def count_audio_files(%Room{id: room_id}) do
+    Song
+    |> where([s], s.room_id == ^room_id)
+    |> where(
+      [s],
+      (not is_nil(s.original_path) and s.original_path != "") or
+        (not is_nil(s.instrumental_path) and s.instrumental_path != "")
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  @spec audio_slot_available?(Room.t()) :: boolean()
+  def audio_slot_available?(%Room{} = room) do
+    count_audio_files(room) < Uploads.max_audio_files_per_room()
   end
 
   @spec playable_path(Song.t() | nil) :: String.t() | nil
@@ -93,6 +113,12 @@ defmodule AllHandsSingAlong.Catalog do
   def playable_path(%Song{instrumental_path: path}) when is_binary(path) and path != "", do: path
 
   def playable_path(%Song{}), do: nil
+
+  @spec playable_url(Song.t() | nil) :: String.t() | nil
+  def playable_url(song), do: song |> playable_path() |> Uploads.public_url()
+
+  @spec original_url(Song.t() | nil) :: String.t() | nil
+  def original_url(song), do: song |> original_path() |> Uploads.public_url()
 
   @spec playable?(Song.t() | nil) :: boolean()
   def playable?(song) do

@@ -113,13 +113,14 @@ defmodule Mix.Tasks.Stems.Worker do
   end
 
   defp download_original(url, token, room, job, tmp_dir) do
-    ext = job.original_path |> Path.extname() |> String.downcase()
-    ext = if ext == "", do: ".mp3", else: ext
+    path = job.original_path
+    ext = download_ext(path)
     dest = Path.join(tmp_dir, "original#{ext}")
 
-    case req(url, token, room)
-         |> Req.get(
-           url: job.original_path,
+    request = download_req(url, token, room, path)
+
+    case Req.get(request,
+           url: path,
            into: File.stream!(dest),
            receive_timeout: @http_timeout
          ) do
@@ -133,6 +134,32 @@ defmodule Mix.Tasks.Stems.Worker do
       {:error, reason} ->
         File.rm(dest)
         {:error, reason}
+    end
+  end
+
+  defp download_ext(path) do
+    file_path =
+      case URI.parse(path) do
+        %URI{path: uri_path} when is_binary(uri_path) -> uri_path
+        _ -> path
+      end
+
+    ext = file_path |> Path.extname() |> String.downcase()
+    if ext == "", do: ".mp3", else: ext
+  end
+
+  defp download_req(url, token, room, path) do
+    if http_url?(path) do
+      Req.new(retry: false, receive_timeout: @http_timeout)
+    else
+      req(url, token, room)
+    end
+  end
+
+  defp http_url?(path) when is_binary(path) do
+    case URI.parse(path) do
+      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
+      _ -> false
     end
   end
 

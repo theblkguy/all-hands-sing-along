@@ -57,6 +57,16 @@ defmodule AllHandsSingAlong.DataCase do
     end)
   end
 
+  def stub_lyrics_http_error(status \\ 500) do
+    Req.Test.set_req_test_to_shared()
+
+    Req.Test.stub(AllHandsSingAlong.Catalog.Lyrics, fn conn ->
+      conn
+      |> Plug.Conn.put_status(status)
+      |> Req.Test.json(%{"message" => "boom"})
+    end)
+  end
+
   def stub_lyrics_synced(lrc \\ "[00:00.00]Hello from LRCLIB") do
     Req.Test.set_req_test_to_shared()
 

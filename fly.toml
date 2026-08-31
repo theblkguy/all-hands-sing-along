@@ -1,5 +1,8 @@
-# Fly.io deploy for All Hands Sing Along (single machine + SQLite volume).
+# Fly.io deploy for All Hands Sing Along (SQLite volume + Tigris for audio).
 # Change `app` if the name is taken: `fly apps create <name>` then update PHX_HOST.
+#
+# Audio: `fly storage create` (Tigris). The /data volume is for SQLite only.
+# UPLOADS_PATH is a fallback if Tigris env vars are not set.
 
 app = "all-hands-sing-along"
 primary_region = "iad"

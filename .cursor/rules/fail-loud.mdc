@@ -1,0 +1,30 @@
+---
+description: Fail loud — prefer nil and tagged errors over empty-string defaults
+alwaysApply: true
+---
+
+# Fail loud
+
+Prefer `nil` and `{:error, reason}` over inventing a valid-looking empty string.
+
+```elixir
+# BAD — missing becomes "", then a second check
+title = params |> Map.get("title", "") |> String.trim()
+if title == "", do: flash, else: save(title)
+
+# GOOD — changeset or pattern match; blank is nil
+title = params["title"] |> blank_to_nil()
+changeset = Song.changeset(%Song{}, %{title: title, artist: artist})
+```
+
+Do not swallow `{:error, _}` by returning the previous struct:
+
+```elixir
+# BAD
+{:error, _} -> song
+
+# GOOD
+{:error, reason} -> {:error, reason}
+```
+
+Keep `with` and pattern matching on the happy path. Unknown error atoms must not become `"Something went wrong"` without a log. In `:dev`, raise.

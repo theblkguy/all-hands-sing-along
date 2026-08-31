@@ -5,6 +5,7 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
   use AllHandsSingAlongWeb, :controller
 
   alias AllHandsSingAlong.Catalog.StemSeparator
+  alias AllHandsSingAlong.Catalog.Uploads
   alias AllHandsSingAlong.Rooms
 
   plug :require_room_host
@@ -16,7 +17,7 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
         json(conn, %{
           id: song.id,
           title: song.title,
-          original_path: song.original_path
+          original_path: Uploads.public_url(song.original_path) || song.original_path
         })
 
       :empty ->
@@ -30,10 +31,10 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
          {:ok, pct} <- parse_percent(params) do
       case StemSeparator.report_remote_progress(conn.assigns.worker_room.id, id, pct) do
         :ok -> json(conn, %{ok: true})
-        {:error, :not_found} -> send_resp(conn, 404, "")
+        {:error, :not_found} -> json_error(conn, 404, :not_found)
       end
     else
-      :error -> send_resp(conn, 422, "")
+      :error -> json_error(conn, 422, :invalid)
     end
   end
 
@@ -47,17 +48,18 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
              upload.filename
            ) do
         :ok -> json(conn, %{ok: true})
-        {:error, :not_found} -> send_resp(conn, 404, "")
-        {:error, :not_running} -> send_resp(conn, 409, "")
-        {:error, :invalid_ext} -> send_resp(conn, 422, "")
-        {:error, _} -> send_resp(conn, 422, "")
+        {:error, :not_found} -> json_error(conn, 404, :not_found)
+        {:error, :not_running} -> json_error(conn, 409, :not_running)
+        {:error, :invalid_ext} -> json_error(conn, 422, :invalid_ext)
+        {:error, reason} when is_atom(reason) -> json_error(conn, 422, reason)
+        {:error, _} -> json_error(conn, 422, :invalid)
       end
     else
-      :error -> send_resp(conn, 422, "")
+      :error -> json_error(conn, 422, :invalid)
     end
   end
 
-  def complete(conn, _params), do: send_resp(conn, 422, "")
+  def complete(conn, _params), do: json_error(conn, 422, :invalid)
 
   @spec fail(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def fail(conn, params) do
@@ -66,10 +68,10 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
 
       case StemSeparator.fail_remote_job(conn.assigns.worker_room.id, id, reason) do
         :ok -> json(conn, %{ok: true})
-        {:error, :not_found} -> send_resp(conn, 404, "")
+        {:error, :not_found} -> json_error(conn, 404, :not_found)
       end
     else
-      :error -> send_resp(conn, 422, "")
+      :error -> json_error(conn, 422, :invalid)
     end
   end
 
@@ -83,9 +85,15 @@ defmodule AllHandsSingAlongWeb.StemWorkerController do
     else
       _ ->
         conn
-        |> send_resp(401, "")
+        |> json_error(401, :unauthorized)
         |> halt()
     end
+  end
+
+  defp json_error(conn, status, reason) when is_atom(reason) do
+    conn
+    |> put_status(status)
+    |> json(%{error: Atom.to_string(reason)})
   end
 
   defp bearer_token(conn) do

@@ -68,6 +68,31 @@ defmodule AllHandsSingAlong.CatalogTest do
     assert song.lrc_text == "[00:00.00]Mine"
   end
 
+  test "create_prepared_song/2 fails loud when lyrics HTTP fails" do
+    room = Fixtures.room_fixture()
+    stub_lyrics_http_error(422)
+
+    assert {:error, {:http, 422}} =
+             Catalog.create_prepared_song(room, %{
+               title: "Levitating",
+               artist: "Dua Lipa"
+             })
+  end
+
+  test "maybe_attach_lyrics/1 returns not_found instead of swallowing" do
+    room = Fixtures.room_fixture()
+    stub_lyrics_not_found()
+    {:ok, song} = Catalog.create_song(room, %{title: "Nope", artist: "Nobody"})
+    assert {:error, :not_found} = Catalog.maybe_attach_lyrics(song)
+  end
+
+  test "count_audio_files/1 counts songs with audio" do
+    room = Fixtures.room_fixture()
+    assert Catalog.count_audio_files(room) == 0
+    _song = Fixtures.song_fixture(room)
+    assert Catalog.count_audio_files(room) >= 1
+  end
+
   test "prepared?/1 needs audio and lyrics" do
     room = Fixtures.room_fixture()
     song = Fixtures.song_fixture(room)

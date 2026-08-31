@@ -5,25 +5,35 @@ defmodule AllHandsSingAlongWeb.HomeLive do
   """
   use AllHandsSingAlongWeb, :live_view
 
-  @brew_cmd ~S|/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"|
-
-  @clone_cmd Enum.join(
-               [
-                 "git clone https://github.com/theblkguy/all-hands-sing-along.git",
-                 "cd all-hands-sing-along",
-                 "./script/setup"
-               ],
-               "\n"
-             )
+  alias AllHandsSingAlong.Rooms.SessionForm
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
        page_title: "All Hands Sing Song",
-       brew_cmd: @brew_cmd,
-       clone_cmd: @clone_cmd
+       host_form: to_form(SessionForm.host_changeset(%{}), as: :host),
+       join_form: to_form(SessionForm.join_changeset(%{}), as: :join)
      )}
+  end
+
+  @impl true
+  def handle_event("validate_host", params, socket) do
+    changeset =
+      params
+      |> SessionForm.host_changeset()
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, host_form: to_form(changeset, as: :host))}
+  end
+
+  def handle_event("validate_join", params, socket) do
+    changeset =
+      params
+      |> SessionForm.join_changeset()
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, join_form: to_form(changeset, as: :join))}
   end
 
   @impl true
@@ -73,83 +83,45 @@ defmodule AllHandsSingAlongWeb.HomeLive do
           </div>
         </section>
 
-        <section id="host-mac-setup" class="glass-panel space-y-6 rounded-3xl p-6 sm:p-8">
-          <div class="max-w-2xl space-y-2">
-            <h2 class="text-lg font-medium text-white">Host from a Mac</h2>
-            <p class="text-sm leading-relaxed text-white/65">
-              Your Mac strips vocals (Demucs) so people can sing over the track. One-time, about 15–30
-              minutes. Guests do not install anything. Leave Terminal open later while people sing.
-            </p>
-          </div>
-
-          <ol class="space-y-6">
-            <li class="flex gap-4">
-              <.step_item n={1} class="mt-0.5 size-8 text-sm" />
-              <div class="min-w-0 flex-1">
-                <h3 class="font-medium text-white">Homebrew</h3>
-                <p class="mt-1 text-sm leading-relaxed text-white/60">
-                  Skip if <code class="text-amber-100/80">brew --version</code>
-                  works. On Apple Silicon,
-                  follow Homebrew’s PATH “Next steps”, then open a new Terminal.
-                </p>
-                <.copy_snippet id="copy-setup-brew" text={@brew_cmd} />
-              </div>
-            </li>
-            <li class="flex gap-4">
-              <.step_item n={2} class="mt-0.5 size-8 text-sm" />
-              <div class="min-w-0 flex-1">
-                <h3 class="font-medium text-white">Clone and install</h3>
-                <p class="mt-1 text-sm leading-relaxed text-white/60">
-                  This installs Demucs, ffmpeg, and Elixir. If setup says
-                  <code class="text-amber-100/80">mix</code>
-                  was not found, open a new Terminal and run
-                  <code class="text-amber-100/80">./script/setup</code>
-                  again.
-                </p>
-                <.copy_snippet id="copy-setup-clone" text={@clone_cmd} />
-              </div>
-            </li>
-            <li class="flex gap-4">
-              <.step_item n={3} class="mt-0.5 size-8 text-sm" />
-              <div class="min-w-0 flex-1">
-                <h3 class="font-medium text-white">Create the room below</h3>
-                <p class="mt-1 text-sm leading-relaxed text-white/60">
-                  The next page shows the last command: <code class="text-amber-100/80">./script/worker --room … --token …</code>.
-                  Run it from that project folder. Guests never need this.
-                </p>
-              </div>
-            </li>
-          </ol>
-        </section>
+        <p id="host-mac-setup" class="text-sm leading-relaxed text-white/55">
+          Hosts who want vocal isolation on a Mac: see <a
+            href="https://github.com/theblkguy/all-hands-sing-along#host-strip-vocals-with-demucs"
+            class="text-amber-100/90 underline decoration-amber-100/30 underline-offset-4 transition hover:text-white"
+          >
+            the README
+          </a>.
+        </p>
 
         <div class="grid gap-6 md:grid-cols-2">
           <.form
-            for={%{}}
+            for={@host_form}
             as={:host}
             action={~p"/session/host"}
             method="post"
             id="create-room-form"
+            phx-change="validate_host"
             class="glass-panel space-y-4 rounded-3xl p-6"
           >
             <h2 class="text-lg font-medium text-white">Host a room</h2>
-            <.input name="display_name" label="Your name" value="" required />
+            <.input field={@host_form[:display_name]} label="Your name" />
             <.button type="submit" variant="primary">Create room</.button>
           </.form>
 
           <.form
-            for={%{}}
-            as={:guest}
+            for={@join_form}
+            as={:join}
             action={~p"/session/join"}
             method="post"
             id="join-room-form"
+            phx-change="validate_join"
             class="glass-panel space-y-4 rounded-3xl p-6"
           >
             <h2 class="text-lg font-medium text-white">Join a room</h2>
             <p id="join-no-install" class="text-sm leading-relaxed text-white/55">
               No install. Ask the host for the room code.
             </p>
-            <.input name="display_name" label="Your name" value="" required />
-            <.input name="code" label="Room code" value="" required />
+            <.input field={@join_form[:display_name]} label="Your name" />
+            <.input field={@join_form[:code]} label="Room code" />
             <.button type="submit">Join</.button>
           </.form>
         </div>

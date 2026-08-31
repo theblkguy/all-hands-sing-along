@@ -35,6 +35,9 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     assert has_element?(guest_view, "#queue-empty")
     assert has_element?(guest_view, "#open-onboarding")
     assert has_element?(guest_view, "#copy-room-code")
+    assert has_element?(guest_view, "#audio-types-hint")
+    assert has_element?(guest_view, "#lrc-types-hint")
+    assert guest_html =~ "mp3, wav, m4a, or ogg"
   end
 
   test "host can open and dismiss the onboarding overlay", %{conn: conn} do
@@ -233,7 +236,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
 
     view
-    |> form("#add-queue-form", %{song_title: "Levitating", song_artist: "Dua Lipa"})
+    |> form("#add-queue-form", %{song: %{title: "Levitating", artist: "Dua Lipa"}})
     |> render_submit()
 
     [entry] = Queue.list_entries(room.id)
@@ -256,10 +259,10 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     html =
       view
-      |> form("#add-queue-form", %{song_title: "Levitating"})
+      |> form("#add-queue-form", %{song: %{title: "Levitating"}})
       |> render_submit()
 
-    assert html =~ "Artist is required"
+    assert html =~ "can&#39;t be blank" or html =~ "can't be blank"
     assert Queue.list_entries(room.id) == []
   end
 
@@ -268,7 +271,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, view, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
 
     view
-    |> form("#add-queue-form", %{song_title: "Levitating", song_artist: "Dua Lipa"})
+    |> form("#add-queue-form", %{song: %{title: "Levitating", artist: "Dua Lipa"}})
     |> render_submit()
 
     [entry] = Queue.list_entries(room.id)
@@ -302,7 +305,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, sam, _html} = live(guest_conn(conn, room, "Sam"), ~p"/rooms/#{room.code}")
 
     sam
-    |> form("#add-queue-form", %{song_title: "Levitating", song_artist: "Dua Lipa"})
+    |> form("#add-queue-form", %{song: %{title: "Levitating", artist: "Dua Lipa"}})
     |> render_submit()
 
     [entry] = Queue.list_entries(room.id)
@@ -620,11 +623,19 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, host_view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     assert has_element?(host_view, "#stem-worker-hint")
+    assert has_element?(host_view, "#reveal-worker-command")
+    refute has_element?(host_view, "#stem-worker-command")
+    refute has_element?(host_view, "#copy-stem-worker")
+    refute render(host_view) =~ room.host_token
+
+    host_view |> element("#reveal-worker-command") |> render_click()
+
     assert has_element?(host_view, "#stem-worker-command")
     assert has_element?(host_view, "#copy-stem-worker")
     assert render(host_view) =~ "./script/setup"
     assert render(host_view) =~ "./script/worker --room #{room.code}"
     assert render(host_view) =~ room.host_token
+    refute has_element?(host_view, "#reveal-worker-command")
     assert has_element?(host_view, "#stem-progress-#{entry.id}")
     assert render(host_view) =~ "Waiting for your Mac to remove vocals"
 
