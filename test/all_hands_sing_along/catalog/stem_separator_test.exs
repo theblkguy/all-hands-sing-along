@@ -52,7 +52,7 @@ defmodule AllHandsSingAlong.Catalog.StemSeparatorTest do
 
     {:ok, song} = Catalog.get_song(song.id)
     assert song.stem_status == :failed
-    assert song.stem_error == "Vocal isolation isn’t installed on this machine"
+    assert song.stem_error == "Can't strip vocals yet. Run setup on this Mac."
     refute Catalog.playable?(song)
 
     {:ok, entry} = Queue.get_entry(entry.id)

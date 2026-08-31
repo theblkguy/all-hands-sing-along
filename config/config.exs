@@ -63,6 +63,9 @@ config :mime, :types, %{
   "text/plain" => ["txt", "text", "lrc"]
 }
 
+config :all_hands_sing_along, AllHandsSingAlong.Catalog.Uploads,
+  adapter: AllHandsSingAlong.Catalog.Uploads.Local
+
 config :all_hands_sing_along, AllHandsSingAlong.Catalog.Lyrics,
   url: "https://lrclib.net/api/get",
   search_url: "https://lrclib.net/api/search",

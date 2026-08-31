@@ -1,0 +1,14 @@
+---
+description: Heavy ML and bulky files do not live on the Fly web VM
+alwaysApply: true
+---
+
+# Resource boundaries
+
+Heavy work (Demucs) and bulky binaries (uploads) do not live on the Fly web VM.
+
+- Vocal isolation already runs on the host Mac.
+- User audio belongs in object storage (Tigris in prod), not the SQLite volume.
+- The web process may coordinate and authorize; it is not the disk or the GPU.
+
+Use Req for HTTP (including S3/Tigris SigV4). Do not add ExAws, HTTPoison, or Tesla.

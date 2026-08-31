@@ -1,0 +1,14 @@
+---
+description: Room codes stay short, uppercase, and unambiguous
+alwaysApply: true
+---
+
+# Join codes
+
+Room codes stay 6 characters, uppercase, Crockford-style alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no `0/O/1/I`). Join is case-insensitive.
+
+Do not “improve” them into UUIDs, lowercase hex, or word-list schemes unless a human asks. No grouped display (`H7K-2NP`) unless asked.
+
+Codes are public join handles, not secrets. `host_token` is the secret.
+
+If uniqueness retries exhaust, return `{:error, :code_collision}` — do not hide that behind an empty changeset.

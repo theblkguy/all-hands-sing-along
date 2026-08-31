@@ -20,7 +20,6 @@ config :all_hands_sing_along, AllHandsSingAlongWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "KfZVzQ5BgrXBtooxn9JiuQZ3REmmtXaeebsFF/Kx3Od67UHbtDVBomS3HtHcxYyN",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:all_hands_sing_along, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:all_hands_sing_along, ~w(--watch)]}
@@ -78,3 +77,13 @@ config :phoenix_live_view,
   debug_attributes: true,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
+
+if File.exists?(Path.expand("dev.secrets.exs", __DIR__)) do
+  import_config "dev.secrets.exs"
+else
+  raise """
+  config/dev.secrets.exs is missing.
+  Copy config/dev.secrets.exs.example to config/dev.secrets.exs
+  and set secret_key_base with: mix phx.gen.secret
+  """
+end

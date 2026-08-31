@@ -1,0 +1,13 @@
+---
+description: Keep LiveViews small; extract sibling helpers, not LiveComponents
+globs: lib/**/*_live*.ex
+alwaysApply: false
+---
+
+# LiveView size
+
+One LiveView per page. Extract socket helpers into sibling modules (`RoomLive.Queue`, `RoomLive.Lyrics`, …), not LiveComponents, unless there is a real isolated-state need.
+
+If a LiveView grows past a few hundred lines of events, split by concern (queue / lyrics / playback) before adding more handlers.
+
+`handle_event` clauses may stay in the LiveView as thin wrappers that call into those modules and return `{:noreply, socket}`.

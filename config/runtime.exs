@@ -42,7 +42,17 @@ if config_env() == :prod do
   uploads_path =
     System.get_env("UPLOADS_PATH") || Path.join(Path.dirname(database_path), "uploads")
 
-  config :all_hands_sing_along, :uploads_path, uploads_path
+  if System.get_env("AWS_ENDPOINT_URL_S3") && System.get_env("BUCKET_NAME") do
+    config :all_hands_sing_along, AllHandsSingAlong.Catalog.Uploads,
+      adapter: AllHandsSingAlong.Catalog.Uploads.Tigris,
+      endpoint: System.get_env("AWS_ENDPOINT_URL_S3"),
+      bucket: System.get_env("BUCKET_NAME"),
+      region: System.get_env("AWS_REGION") || "auto",
+      access_key_id: System.get_env("AWS_ACCESS_KEY_ID"),
+      secret_access_key: System.get_env("AWS_SECRET_ACCESS_KEY")
+  else
+    config :all_hands_sing_along, :uploads_path, uploads_path
+  end
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

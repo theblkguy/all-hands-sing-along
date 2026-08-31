@@ -6,44 +6,60 @@ defmodule AllHandsSingAlongWeb.SessionController do
   use AllHandsSingAlongWeb, :controller
 
   alias AllHandsSingAlong.Rooms
+  alias AllHandsSingAlong.Rooms.SessionForm
 
   @spec create_host(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def create_host(conn, params) do
-    name = params |> Map.get("display_name", "") |> String.trim()
+    changeset = SessionForm.host_changeset(params)
 
-    if name == "" do
-      conn
-      |> put_flash(:error, "Name is required")
-      |> redirect(to: ~p"/")
-    else
-      {:ok, room} = Rooms.create_room()
+    case Ecto.Changeset.apply_action(changeset, :insert) do
+      {:ok, %{display_name: name}} ->
+        case Rooms.create_room() do
+          {:ok, room} ->
+            conn
+            |> put_guest_session(name)
+            |> put_session(:host_tokens, Map.put(host_tokens(conn), room.code, room.host_token))
+            |> redirect(to: ~p"/rooms/#{room.code}")
 
-      conn
-      |> put_guest_session(name)
-      |> put_session(:host_tokens, Map.put(host_tokens(conn), room.code, room.host_token))
-      |> redirect(to: ~p"/rooms/#{room.code}")
+          {:error, :code_collision} ->
+            conn
+            |> put_flash(:error, "Couldn't create a room. Try again.")
+            |> redirect(to: ~p"/")
+
+          {:error, _changeset} ->
+            conn
+            |> put_flash(:error, "Couldn't create a room. Try again.")
+            |> redirect(to: ~p"/")
+        end
+
+      {:error, changeset} ->
+        conn
+        |> put_flash(:error, first_error(changeset))
+        |> redirect(to: ~p"/")
     end
   end
 
   @spec join(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def join(conn, params) do
-    name = params |> Map.get("display_name", "") |> String.trim()
-    code = params |> Map.get("code", "") |> String.trim()
+    changeset = SessionForm.join_changeset(params)
 
-    with true <- name != "",
-         {:ok, room} <- Rooms.get_room_by_code(code) do
-      conn
-      |> put_guest_session(name)
-      |> redirect(to: ~p"/rooms/#{room.code}")
-    else
-      false ->
-        conn
-        |> put_flash(:error, "Name is required")
-        |> redirect(to: ~p"/")
+    case Ecto.Changeset.apply_action(changeset, :insert) do
+      {:ok, %{display_name: name, code: code}} ->
+        case Rooms.get_room_by_code(code) do
+          {:ok, room} ->
+            conn
+            |> put_guest_session(name)
+            |> redirect(to: ~p"/rooms/#{room.code}")
 
-      {:error, :not_found} ->
+          {:error, :not_found} ->
+            conn
+            |> put_flash(:error, "Room not found")
+            |> redirect(to: ~p"/")
+        end
+
+      {:error, changeset} ->
         conn
-        |> put_flash(:error, "Room not found")
+        |> put_flash(:error, first_error(changeset))
         |> redirect(to: ~p"/")
     end
   end
@@ -55,4 +71,15 @@ defmodule AllHandsSingAlongWeb.SessionController do
   end
 
   defp host_tokens(conn), do: get_session(conn, :host_tokens) || %{}
+
+  defp first_error(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Enum.map(fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
+    |> List.first()
+    |> case do
+      nil -> "Invalid"
+      msg -> msg
+    end
+  end
 end

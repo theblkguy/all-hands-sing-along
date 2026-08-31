@@ -1,5 +1,16 @@
 This is a web application written using the Phoenix web framework.
 
+## Project conventions
+
+- Fail loud: prefer `nil` and `{:error, reason}` over `Map.get(params, key, "")`. Do not swallow errors by returning the previous struct.
+- Forms use `to_form` + changesets; field errors go through `<.error>` via `<.input>`. Flash is not a substitute for field validation.
+- Dev secrets live in gitignored `config/dev.secrets.exs`. Hide host tokens in the UI until revealed.
+- Do not invent product copy. No copy-pasteable bash on the homepage; setup belongs in the README.
+- Keep LiveViews small: extract sibling helper modules, not LiveComponents.
+- Heavy ML (Demucs) and bulky uploads stay off the Fly web VM. Files go to object storage in prod.
+- Room codes stay 6-char Crockford-style (`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`). They are join handles, not secrets.
+- `.tool-versions` matches the Dockerfile (Erlang 27.3, Elixir 1.18.4-otp-27).
+
 ## Project guidelines
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues

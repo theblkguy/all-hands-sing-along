@@ -28,47 +28,44 @@ defmodule AllHandsSingAlongWeb.Onboarding do
           aria-labelledby="onboarding-title"
           class="glass-panel relative max-h-[min(36rem,calc(100dvh-2rem))] w-full max-w-lg overflow-y-auto rounded-3xl p-6 sm:p-8"
         >
-          <p class="text-xs font-medium uppercase tracking-[0.28em] text-amber-100/70">
-            {if @host?, do: "Host guide", else: "Guest guide"}
-          </p>
-          <h2 id="onboarding-title" class="mt-2 text-2xl font-semibold tracking-tight text-white">
+          <h2 id="onboarding-title" class="text-2xl font-semibold tracking-tight text-white">
             {if @host?, do: "You're hosting", else: "You're in the room"}
           </h2>
           <p class="mt-2 text-sm leading-relaxed text-white/65">
             {if @host?,
-              do: "You run the queue and the clock. Guests add songs and sing along.",
-              else: "The host runs playback. You add songs, watch lyrics, and wait your turn."}
+              do: "You start and stop the songs. Everyone else adds themselves and sings.",
+              else: "The host plays the songs. Add yours, follow the lyrics, and wait your turn."}
           </p>
 
           <ol :if={@host?} class="mt-6 space-y-4">
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={1} class="mt-0.5 size-6 text-xs" />
               <span>
-                Share room code <span class="font-mono tracking-wider text-white">{@room_code}</span>
-                and the site URL. Keep this browser tab open — clearing cookies drops host controls.
+                Send people code <span class="font-mono tracking-wider text-white">{@room_code}</span>
+                and this URL. Keep this tab open — clearing cookies drops host controls.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={2} class="mt-0.5 size-6 text-xs" />
-              <span>Headphones on. Zoom is for faces only.</span>
+              <span>Wear headphones so Zoom doesn't pick up the track.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={3} class="mt-0.5 size-6 text-xs" />
               <span>
-                Wait until a song is <span class="text-white">Ready</span>
-                (instrumental + lyrics), then hit Start singer.
+                When a song is <span class="text-white">Ready</span>
+                (track + lyrics), hit Start singer.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={4} class="mt-0.5 size-6 text-xs" />
               <span>
-                Play, Pause, and Skip control everyone. Use Lyrics later / earlier if the line is off.
+                Play, Pause, and Skip move everyone. Later / Earlier if the lyrics are off.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={5} class="mt-0.5 size-6 text-xs" />
               <span>
-                If a song is stuck on Preparing: upload audio, search or paste lyrics, or Use original anyway.
+                Stuck on Preparing? Add audio, search or paste lyrics, or Play original.
               </span>
             </li>
           </ol>
@@ -78,34 +75,35 @@ defmodule AllHandsSingAlongWeb.Onboarding do
             id="onboarding-worker-note"
             class="mt-4 text-sm leading-relaxed text-amber-100/80"
           >
-            Vocal isolation runs on your Mac. Use the command at the top of this page.
+            To strip vocals, click Show Mac command at the top of this page and run it in Terminal
+            (after the README setup).
           </p>
 
           <ol :if={not @host?} class="mt-6 space-y-4">
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={1} class="mt-0.5 size-6 text-xs" />
-              <span>Headphones on. Stay on Zoom for faces.</span>
+              <span>Wear headphones, and stay on Zoom for faces.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={2} class="mt-0.5 size-6 text-xs" />
               <span>
-                Add yourself to the queue with a title and artist. Audio is optional; lyrics usually fetch on their own.
+                Add a title and artist. Audio is optional; lyrics usually show up on their own.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={3} class="mt-0.5 size-6 text-xs" />
               <span>
-                Wait until the song is <span class="text-white">Ready</span>. The host starts playback for everyone.
+                Wait until the song is <span class="text-white">Ready</span>. The host starts everyone together.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={4} class="mt-0.5 size-6 text-xs" />
-              <span>Don't scrub the audio bar. It does not drive the room clock.</span>
+              <span>Don't drag the audio bar — it won't change the room.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={5} class="mt-0.5 size-6 text-xs" />
               <span>
-                <span class="text-white">In the room</span> is who is online, not singer order.
+                <span class="text-white">In the room</span> is who's here, not the singing order.
               </span>
             </li>
           </ol>

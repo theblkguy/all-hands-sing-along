@@ -16,7 +16,8 @@ defmodule AllHandsSingAlong.Rooms do
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   @code_length 6
 
-  @spec create_room() :: {:ok, Room.t()} | {:error, Ecto.Changeset.t()}
+  @spec create_room() ::
+          {:ok, Room.t()} | {:error, :code_collision} | {:error, Ecto.Changeset.t()}
   def create_room do
     insert_room(5)
   end
@@ -230,7 +231,7 @@ defmodule AllHandsSingAlong.Rooms do
 
   defp track_from_entry(room, %Entry{} = entry) do
     song = entry.song
-    audio_url = Catalog.playable_path(song) || Catalog.fixture_path()
+    audio_url = Catalog.playable_url(song) || Catalog.fixture_path()
     lrc = (song && song.lrc_text) || Catalog.fixture_lrc()
 
     %{
@@ -253,7 +254,7 @@ defmodule AllHandsSingAlong.Rooms do
     %{
       entry_id: entry.id,
       song_id: song.id,
-      audio_url: Catalog.original_path(song),
+      audio_url: Catalog.original_url(song),
       lyrics: Sync.parse_lrc(song.lrc_text),
       title: entry.song_title,
       artist: song.artist,
@@ -308,7 +309,8 @@ defmodule AllHandsSingAlong.Rooms do
   end
 
   defp insert_room(_retries) do
-    {:error, Room.changeset(%Room{}, %{})}
+    Logger.error("exhausted room code retries")
+    {:error, :code_collision}
   end
 
   defp generate_code do
