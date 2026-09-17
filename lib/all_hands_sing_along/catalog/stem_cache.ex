@@ -81,9 +81,6 @@ defmodule AllHandsSingAlong.Catalog.StemCache do
 
   def put(_, _, _, _), do: :ok
 
-  @spec count() :: non_neg_integer()
-  def count, do: Repo.aggregate(__MODULE__, :count)
-
   # Floats as SQLite keys are fine as long as they're written identically each
   # time; round to two places so 0.12 and 0.120000001 collide.
   defp normalize_mix(mix), do: Float.round(mix / 1, 2)

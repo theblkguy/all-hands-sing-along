@@ -63,7 +63,6 @@ defmodule AllHandsSingAlongWeb.RoomLive.Auth do
   def error_text(:invalid_delta), do: "Invalid lyric offset."
   def error_text(:invalid_direction), do: "Invalid move direction."
   def error_text(:no_synced_lyrics), do: "That match has no timed lyrics."
-  def error_text(:ambiguous), do: "A few matches — pick one below."
   def error_text(:none_ready), do: "No ready songs."
   def error_text(:invalid_ext), do: "Unsupported audio type."
   def error_text(:no_file), do: "Choose a file."

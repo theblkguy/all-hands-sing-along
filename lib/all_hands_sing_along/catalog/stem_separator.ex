@@ -20,9 +20,6 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @spec local_available?() :: boolean()
-  def local_available?, do: adapter_available?()
-
   @doc """
   Where vocal removal happens for this deployment:
 
