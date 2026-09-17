@@ -8,6 +8,8 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
 
   alias AllHandsSingAlong.Catalog
   alias AllHandsSingAlong.Catalog.Song
+  alias AllHandsSingAlong.Catalog.StemAdapter
+  alias AllHandsSingAlong.Catalog.StemCache
   alias AllHandsSingAlong.Catalog.Uploads
   alias AllHandsSingAlong.Queue
   alias AllHandsSingAlong.Repo
@@ -19,8 +21,45 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   @spec local_available?() :: boolean()
   def local_available?, do: adapter_available?()
 
+  @doc """
+  Where vocal removal happens for this deployment:
+
+    * `:cloud`         — a URL-capable adapter (Replicate) runs on the server. No host setup.
+    * `:local`         — Demucs is installed on this machine (running the app locally).
+    * `:remote_worker` — nothing here can separate; a host's Mac must run `./script/worker`.
+    * `:disabled`      — separation turned off in config.
+  """
+  @spec mode() :: :cloud | :local | :remote_worker | :disabled
+  def mode do
+    cond do
+      not enabled?() -> :disabled
+      not adapter_available?() -> :remote_worker
+      StemAdapter.remote_capable?(adapter()) -> :cloud
+      true -> :local
+    end
+  end
+
+  @spec vocal_mix() :: float()
+  def vocal_mix do
+    case Keyword.get(config(), :vocal_mix, 0.12) do
+      mix when is_number(mix) and mix >= 0 and mix <= 1 -> mix / 1
+      _ -> 0.12
+    end
+  end
+
   @spec enqueue(integer()) :: :ok | {:error, term()}
   def enqueue(song_id) when is_integer(song_id) do
+    case cached_instrumental(song_id) do
+      url when is_binary(url) ->
+        # Someone, somewhere, already separated these exact bytes. Skip the queue.
+        finish_job(song_id, {:ok, url})
+
+      nil ->
+        do_enqueue(song_id)
+    end
+  end
+
+  defp do_enqueue(song_id) do
     cond do
       not enabled?() ->
         mark_failed(song_id, :not_installed)
@@ -258,10 +297,60 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   end
 
   defp isolate_and_store(%Song{} = song) do
-    with {:ok, input} <- input_file(song),
-         {:ok, produced} <- adapter().isolate(input, &report_progress(song, &1)),
+    with {:ok, produced} <- isolate(song),
          {:ok, url} <- Uploads.store_audio!(produced, Path.basename(produced)) do
       {:ok, url}
+    end
+  end
+
+  # Cloud adapters fetch the original themselves from a presigned URL, so the
+  # Fly VM never downloads it. Local adapters need the file on disk.
+  defp isolate(%Song{} = song) do
+    adapter = adapter()
+    progress = &report_progress(song, &1)
+
+    with {:remote, {:ok, url}} <- {:remote, remote_source(adapter, song)} do
+      adapter.isolate_url(url, progress)
+    else
+      {:remote, :local} ->
+        with {:ok, input} <- input_file(song) do
+          adapter.isolate(input, progress)
+        end
+
+      {:remote, {:error, reason}} ->
+        {:error, reason}
+    end
+  end
+
+  defp remote_source(adapter, %Song{} = song) do
+    cond do
+      not StemAdapter.remote_capable?(adapter) ->
+        :local
+
+      absolute_url?(Uploads.public_url(song.original_path)) ->
+        {:ok, Uploads.public_url(song.original_path)}
+
+      # Local uploads adapter (dev) + cloud separator: fall back to shipping the file.
+      is_binary(Uploads.local_path(song.original_path)) ->
+        :local
+
+      true ->
+        {:error, :missing_audio}
+    end
+  end
+
+  defp absolute_url?(url) when is_binary(url),
+    do: String.starts_with?(url, ["http://", "https://"])
+
+  defp absolute_url?(_), do: false
+
+  defp cached_instrumental(song_id) do
+    case Repo.get(Song, song_id) do
+      %Song{content_hash: hash} = song when is_binary(hash) ->
+        if Catalog.needs_isolation?(song), do: StemCache.lookup(hash, vocal_mix()), else: nil
+
+      _ ->
+        nil
     end
   end
 
@@ -302,8 +391,12 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
                stem_error: nil,
                stem_progress: 100
              }) do
-          {:ok, updated} -> Queue.sync_entries_for_song(updated)
-          {:error, _} -> mark_failed(song_id, :stem_failed)
+          {:ok, updated} ->
+            StemCache.put(updated.content_hash, vocal_mix(), url, Atom.to_string(mode()))
+            Queue.sync_entries_for_song(updated)
+
+          {:error, _} ->
+            mark_failed(song_id, :stem_failed)
         end
     end
   end
@@ -373,6 +466,14 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
     do: "Need ffmpeg to mix a quiet guide vocal."
 
   defp error_message(:missing_audio), do: "The song file is missing"
+
+  defp error_message(:replicate_unauthorized),
+    do: "Vocal removal isn't set up: the Replicate token was rejected."
+
+  defp error_message(:replicate_billing),
+    do: "Vocal removal is paused: the Replicate account needs billing."
+
+  defp error_message(:timeout), do: "Vocal removal took too long. Try again or Play original."
   defp error_message(_), do: "Couldn't strip the vocals"
 
   defp reason_to_error(_), do: :stem_failed

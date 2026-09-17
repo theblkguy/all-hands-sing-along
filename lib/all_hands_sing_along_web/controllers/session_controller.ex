@@ -14,7 +14,7 @@ defmodule AllHandsSingAlongWeb.SessionController do
 
     case Ecto.Changeset.apply_action(changeset, :insert) do
       {:ok, %{display_name: name}} ->
-        case Rooms.create_room() do
+        case Rooms.create_room(conn.assigns[:current_user]) do
           {:ok, room} ->
             conn
             |> put_guest_session(name)
@@ -64,10 +64,43 @@ defmodule AllHandsSingAlongWeb.SessionController do
     end
   end
 
+  @doc """
+  Turn this browser into the host via the room's host link.
+
+  The host token used to live only in the cookie that clicked Create room, so a
+  cleared cookie, a different browser, or a phone meant losing the controls.
+  Now the room page shows a link the host can save; opening it here re-grants
+  host in the current session.
+  """
+  @spec claim_host(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def claim_host(conn, %{"code" => code, "token" => token}) do
+    with {:ok, room} <- Rooms.get_room_by_code(code),
+         :ok <- Rooms.authorize_host(room, token) do
+      name = get_session(conn, :display_name) || "Host"
+
+      conn
+      |> put_guest_session(name)
+      |> put_session(:host_tokens, Map.put(host_tokens(conn), room.code, room.host_token))
+      |> put_flash(:info, "You're the host in this browser now.")
+      |> redirect(to: ~p"/rooms/#{room.code}")
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "That host link isn't valid.")
+        |> redirect(to: ~p"/")
+    end
+  end
+
   defp put_guest_session(conn, name) do
+    guest_id =
+      case conn.assigns[:current_user] do
+        %{id: id} -> "user-#{id}"
+        _ -> get_session(conn, :guest_id) || Ecto.UUID.generate()
+      end
+
     conn
     |> put_session(:display_name, name)
-    |> put_session(:guest_id, get_session(conn, :guest_id) || Ecto.UUID.generate())
+    |> put_session(:guest_id, guest_id)
   end
 
   defp host_tokens(conn), do: get_session(conn, :host_tokens) || %{}

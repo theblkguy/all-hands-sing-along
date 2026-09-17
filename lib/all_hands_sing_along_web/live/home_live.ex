@@ -6,14 +6,21 @@ defmodule AllHandsSingAlongWeb.HomeLive do
   use AllHandsSingAlongWeb, :live_view
 
   alias AllHandsSingAlong.Rooms.SessionForm
+  alias AllHandsSingAlongWeb.UserAuth
 
   @impl true
   def mount(_params, _session, socket) do
+    socket = assign_new(socket, :current_user, fn -> nil end)
+    user = socket.assigns.current_user
+    prefill = if user, do: %{"display_name" => user.name}, else: %{}
+
     {:ok,
      assign(socket,
        page_title: "All Hands Sing Song",
-       host_form: to_form(SessionForm.host_changeset(%{}), as: :host),
-       join_form: to_form(SessionForm.join_changeset(%{}), as: :join)
+       stem_mode: AllHandsSingAlong.Catalog.StemSeparator.mode(),
+       needs_sign_in?: UserAuth.required?() and is_nil(user),
+       host_form: to_form(SessionForm.host_changeset(prefill), as: :host),
+       join_form: to_form(SessionForm.join_changeset(prefill), as: :join)
      )}
   end
 
@@ -39,7 +46,7 @@ defmodule AllHandsSingAlongWeb.HomeLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <div class="space-y-10 pt-6">
         <div class="max-w-xl space-y-4">
           <p class="text-xs font-medium uppercase tracking-[0.28em] text-amber-100/70">
@@ -83,16 +90,70 @@ defmodule AllHandsSingAlongWeb.HomeLive do
           </div>
         </section>
 
-        <p id="host-mac-setup" class="text-sm leading-relaxed text-white/55">
+        <p
+          :if={@stem_mode == :remote_worker}
+          id="host-mac-setup"
+          class="text-sm leading-relaxed text-white/55"
+        >
           Want vocals stripped? First-time setup is in <a
-            href="https://github.com/theblkguy/all-hands-sing-along#host-strip-vocals-with-demucs"
+            href="https://github.com/theblkguy/all-hands-sing-along#mac-worker-fallback"
             class="text-amber-100/90 underline decoration-amber-100/30 underline-offset-4 transition hover:text-white"
           >
             the README
           </a>. Then, in the room, show the Mac command and run it from the project folder.
         </p>
 
-        <div class="grid gap-6 md:grid-cols-2">
+        <p
+          :if={@stem_mode != :remote_worker}
+          id="host-no-setup"
+          class="text-sm leading-relaxed text-white/55"
+        >
+          Nothing to install. Upload a song and vocals come off automatically; tracks anyone has
+          used before are ready instantly.
+        </p>
+
+        <section
+          :if={@needs_sign_in?}
+          id="sign-in-panel"
+          class="glass-panel flex flex-col items-start gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <h2 class="text-lg font-medium text-white">Sign in to sing</h2>
+            <p class="mt-1 text-sm leading-relaxed text-white/60">
+              Use your work Google account. Your name comes from your profile.
+            </p>
+          </div>
+          <a
+            id="sign-in-google"
+            href={~p"/auth/google"}
+            class="btn btn-primary inline-flex items-center gap-2"
+          >
+            <svg viewBox="0 0 24 24" class="size-4" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.4Z"
+              />
+              <path
+                fill="currentColor"
+                opacity=".7"
+                d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1a6 6 0 0 1-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22Z"
+              />
+              <path
+                fill="currentColor"
+                opacity=".5"
+                d="M6.4 14a6 6 0 0 1 0-3.9V7.4H3.1a10 10 0 0 0 0 9.2L6.4 14Z"
+              />
+              <path
+                fill="currentColor"
+                opacity=".85"
+                d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10A6 6 0 0 1 12 6Z"
+              />
+            </svg>
+            Sign in with Google
+          </a>
+        </section>
+
+        <div :if={not @needs_sign_in?} class="grid gap-6 md:grid-cols-2">
           <.form
             for={@host_form}
             as={:host}

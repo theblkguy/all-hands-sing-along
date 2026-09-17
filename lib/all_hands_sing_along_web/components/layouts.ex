@@ -31,6 +31,8 @@ defmodule AllHandsSingAlongWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
 
+  attr :current_user, :map, default: nil, doc: "signed-in Google user, or nil"
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -53,7 +55,10 @@ defmodule AllHandsSingAlongWeb.Layouts do
               All Hands Sing Song
             </span>
           </a>
-          <.theme_toggle />
+          <div class="flex items-center gap-3">
+            <.user_chip :if={@current_user} user={@current_user} />
+            <.theme_toggle />
+          </div>
         </header>
 
         <main class="px-4 pb-16 sm:px-6 lg:px-8">
@@ -64,6 +69,31 @@ defmodule AllHandsSingAlongWeb.Layouts do
 
         <.flash_group flash={@flash} />
       </div>
+    </div>
+    """
+  end
+
+  attr :user, :map, required: true
+
+  defp user_chip(assigns) do
+    ~H"""
+    <div id="user-chip" class="flex items-center gap-2 text-sm text-white/75">
+      <img
+        :if={@user.avatar_url}
+        src={@user.avatar_url}
+        alt=""
+        referrerpolicy="no-referrer"
+        class="size-7 rounded-full border border-white/15"
+      />
+      <span class="hidden sm:inline">{@user.name}</span>
+      <.link
+        href={~p"/auth/logout"}
+        method="delete"
+        id="sign-out"
+        class="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-wider text-white/80 transition hover:border-amber-200/40 hover:bg-white/15 hover:text-amber-100"
+      >
+        Sign out
+      </.link>
     </div>
     """
   end

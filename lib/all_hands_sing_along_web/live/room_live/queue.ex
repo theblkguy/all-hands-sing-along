@@ -195,13 +195,14 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
         {:ok, Uploads.read_text!(path)}
       end)
 
-    audio_path = List.first(audio_paths)
+    {audio_path, content_hash} = split_stored(List.first(audio_paths))
     lrc_text = List.first(lrc_texts)
 
     attrs = %{
       title: title,
       artist: artist,
       original_path: audio_path,
+      content_hash: content_hash,
       lrc_text: lrc_text
     }
 
@@ -213,7 +214,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
 
   defp save_late_audio(socket, entry) do
     case consume_late_audio(socket) do
-      {:ok, socket, path} ->
+      {:ok, socket, path, content_hash} ->
         song_result =
           case entry.song do
             nil ->
@@ -222,6 +223,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
             song ->
               Catalog.update_song(song, %{
                 original_path: path,
+                content_hash: content_hash,
                 stem_status: :idle,
                 stem_error: nil
               })
@@ -247,19 +249,30 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
 
   defp consume_late_audio(socket) do
     case consume_uploaded_audio(socket, :late_audio) do
-      [path | _] when is_binary(path) -> {:ok, socket, path}
+      [{path, hash} | _] when is_binary(path) -> {:ok, socket, path, hash}
       _ -> {:error, :no_file}
     end
   end
 
+  # Each stored upload comes back as {logical_path, sha256}. The hash is the
+  # stem-cache key: same bytes anywhere → instant instrumental.
   defp consume_uploaded_audio(socket, name) do
     consume_uploaded_entries(socket, name, fn %{path: path}, entry ->
+      hash =
+        case Uploads.sha256_file(path) do
+          {:ok, hash} -> hash
+          _ -> nil
+        end
+
       case Uploads.store_audio!(path, entry.client_name) do
-        {:ok, url} -> {:ok, url}
+        {:ok, url} -> {:ok, {url, hash}}
         {:error, reason} -> {:postpone, reason}
       end
     end)
   end
+
+  defp split_stored({path, hash}) when is_binary(path), do: {path, hash}
+  defp split_stored(other), do: {other, nil}
 
   defp can_attach_audio?(socket, entry) do
     HTML.can_attach_audio?(socket.assigns.host?, socket.assigns.display_name, entry)
