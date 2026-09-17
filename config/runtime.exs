@@ -27,6 +27,36 @@ if uploads_path = System.get_env("UPLOADS_PATH") do
   config :all_hands_sing_along, :uploads_path, uploads_path
 end
 
+# Sign in with Google. Create an OAuth client (Web application) in Google Cloud
+# console with redirect URI https://<PHX_HOST>/auth/google/callback.
+# GOOGLE_ALLOWED_DOMAINS="acme.com,acme.io" limits sign-in to those Workspace domains.
+google_client_id = System.get_env("GOOGLE_CLIENT_ID")
+google_client_secret = System.get_env("GOOGLE_CLIENT_SECRET")
+
+if google_client_id && google_client_secret do
+  config :all_hands_sing_along, AllHandsSingAlong.Auth.Google,
+    enabled: true,
+    client_id: google_client_id,
+    client_secret: google_client_secret,
+    allowed_domains:
+      (System.get_env("GOOGLE_ALLOWED_DOMAINS") || "")
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+end
+
+# Vocal removal in the cloud: with a Replicate token present, the server runs
+# Demucs on Replicate's GPUs and no host has to install anything. Without it,
+# the app falls back to local Demucs (if installed) or the Mac worker.
+if replicate_token = System.get_env("REPLICATE_API_TOKEN") do
+  config :all_hands_sing_along, AllHandsSingAlong.Catalog.ReplicateStemAdapter,
+    token: replicate_token,
+    version: System.get_env("REPLICATE_DEMUCS_VERSION"),
+    model: System.get_env("REPLICATE_DEMUCS_MODEL") || "htdemucs"
+
+  config :all_hands_sing_along, AllHandsSingAlong.Catalog.StemSeparator,
+    adapter: AllHandsSingAlong.Catalog.ReplicateStemAdapter
+end
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||

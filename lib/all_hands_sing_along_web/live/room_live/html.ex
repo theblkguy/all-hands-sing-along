@@ -29,12 +29,13 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
     <div class="space-y-8">
       <.headphones_banner />
       <.stem_worker_hint
-        :if={@host? and not @stem_local?}
+        :if={@host? and @stem_mode == :remote_worker}
         room_code={@room.code}
         host_token={@host_token}
         show_command?={@show_worker_command?}
       />
       <.room_header room={@room} host?={@host?} display_name={@display_name} />
+      <.host_link_panel :if={@host?} host_link={@host_link} show?={@show_host_link?} />
       <.now_playing host?={@host?} playback={@playback} lyric_preview={@lyric_preview} />
       <.lyric_preview_card :if={@host? and @lyric_preview} lyric_preview={@lyric_preview} />
       <.queue_and_presence {assigns} />
@@ -83,6 +84,50 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         id="copy-stem-worker"
         pre_id="stem-worker-command"
         text={"./script/worker --room #{@room_code} --token #{@host_token}"}
+      />
+    </div>
+    """
+  end
+
+  attr :host_link, :string, default: nil
+  attr :show?, :boolean, default: false
+
+  defp host_link_panel(assigns) do
+    ~H"""
+    <div id="host-link-panel" class="glass-panel rounded-2xl px-4 py-3 text-sm text-white/75">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="font-medium text-white">Your host link</p>
+          <p class="mt-1 text-white/60">
+            Save it. Open it on your phone or another browser to get host controls back —
+            even after clearing cookies. Don't share it with singers.
+          </p>
+        </div>
+        <.button
+          :if={not @show?}
+          id="reveal-host-link"
+          type="button"
+          phx-click="reveal_host_link"
+          class="btn btn-sm"
+        >
+          Show host link
+        </.button>
+        <.button
+          :if={@show?}
+          id="hide-host-link"
+          type="button"
+          phx-click="hide_host_link"
+          class="btn btn-sm btn-ghost"
+        >
+          Hide
+        </.button>
+      </div>
+      <.copy_snippet
+        :if={@show? and is_binary(@host_link)}
+        id="copy-host-link"
+        pre_id="host-link"
+        text={@host_link}
+        label="Copy link"
       />
     </div>
     """
@@ -308,6 +353,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           changing_lyrics_id={@changing_lyrics_id}
           attaching_audio_id={@attaching_audio_id}
           late_audio={@uploads.late_audio}
+          stem_mode={@stem_mode}
         />
       </ul>
     </section>
@@ -322,6 +368,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
   attr :changing_lyrics_id, :any, default: nil
   attr :attaching_audio_id, :any, default: nil
   attr :late_audio, :map, required: true
+  attr :stem_mode, :atom, default: :cloud
 
   defp queue_item(assigns) do
     ~H"""
@@ -353,7 +400,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
               class="space-y-1"
             >
               <span class="text-sm text-base-content/70">
-                {stem_progress_label(@entry.song)}
+                {stem_progress_label(@entry.song, @stem_mode)}
               </span>
               <progress
                 class="progress w-full"
@@ -687,13 +734,15 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
 
   defp playback_mode_label(%{mode: :singing}), do: "Backing track"
 
-  defp stem_progress_label(%{stem_status: :queued}), do: "Waiting on your Mac…"
+  defp stem_progress_label(%{stem_status: :queued}, :remote_worker), do: "Waiting on your Mac…"
+  defp stem_progress_label(%{stem_status: :queued}, _mode), do: "Waiting to remove vocals…"
 
-  defp stem_progress_label(%{stem_status: :running, stem_progress: pct}) when is_integer(pct) do
+  defp stem_progress_label(%{stem_status: :running, stem_progress: pct}, _mode)
+       when is_integer(pct) do
     "Removing vocals #{pct}%"
   end
 
-  defp stem_progress_label(_), do: "Removing vocals…"
+  defp stem_progress_label(_, _mode), do: "Removing vocals…"
 
   defp offset_label(nil), do: "Lyrics on time"
   defp offset_label(0), do: "Lyrics on time"

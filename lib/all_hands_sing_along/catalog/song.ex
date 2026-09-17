@@ -13,6 +13,7 @@ defmodule AllHandsSingAlong.Catalog.Song do
     field :artist, :string
     field :original_path, :string
     field :instrumental_path, :string
+    field :content_hash, :string
     field :lrc_text, :string
     field :duration_ms, :integer
     field :lyric_offset_ms, :integer, default: 0
@@ -38,6 +39,7 @@ defmodule AllHandsSingAlong.Catalog.Song do
       :artist,
       :original_path,
       :instrumental_path,
+      :content_hash,
       :lrc_text,
       :duration_ms,
       :lyric_offset_ms,
@@ -51,6 +53,7 @@ defmodule AllHandsSingAlong.Catalog.Song do
     |> validate_length(:title, min: 1, max: 200)
     |> validate_length(:artist, min: 1, max: 200)
     |> validate_length(:stem_error, max: 500)
+    |> validate_length(:content_hash, is: 64)
     |> validate_number(:duration_ms, greater_than: 0)
     |> validate_number(:lyric_offset_ms,
       greater_than_or_equal_to: -15_000,

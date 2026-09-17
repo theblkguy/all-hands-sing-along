@@ -6,13 +6,14 @@ One person **hosts**. Everyone else opens the same room. Wear headphones so the 
 
 Live site: [all-hands-sing-along.fly.dev](https://all-hands-sing-along.fly.dev)
 
-**Singers don't clone this repo.** Open the URL, type a name and room code, and join. Only the host installs anything, and only if they want the Mac to strip vocals.
+**Nobody clones this repo to sing or to host.** Open the URL, type a name, and go. Vocal removal runs in the cloud (Replicate) and finished instrumentals are cached by file hash, so the second time anyone anywhere queues the same track it's instant.
 
-| You are | What you install |
-| --- | --- |
-| Joining a room | Nothing — just a browser. |
-| Hosting on the live site | Homebrew + this repo once, so Demucs can strip vocals |
-| Running the app on your Mac | Same one-time setup, then `./script/server` |
+| You are                     | What you install                                                    |
+| --------------------------- | ------------------------------------------------------------------- |
+| Joining a room              | Nothing — just a browser.                                           |
+| Hosting on the live site    | Nothing — just a browser.                                           |
+| Running the app on your Mac | Homebrew + this repo once, then `./script/server`                   |
+| Deploying your own copy     | Fly CLI + a Replicate API token (see [Deploy on Fly.io](#deploy-on-flyio)) |
 
 This guide is for macOS. The app uses SQLite — you do not need Postgres.
 
@@ -22,62 +23,51 @@ This guide is for macOS. The app uses SQLite — you do not need Postgres.
 
 Guests: open [all-hands-sing-along.fly.dev](https://all-hands-sing-along.fly.dev), enter your name and the room code, click **Join**. That is the whole setup.
 
-### Host: strip vocals with Demucs
+Hosts: under **Host a room**, enter your name and click **Create room**. Share the room code. When a song is **Ready**, hit **Play**.
 
-The live site doesn't run Demucs (too heavy for a small cloud VM). **Your Mac** does it, for **your room only**. First setup takes a while (Homebrew, Demucs). After that, each session is one Terminal command.
+### Sign in
 
-You can skip this and still host: attach a karaoke file, or **Play original**.
+The live site asks for your Google account (restricted to the company domain). Your name comes from your profile; you can still change it when you create or join a room. Nothing else to remember.
 
-#### 1. Homebrew (skip if `brew --version` works)
+### Keep your host controls
 
-```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
+If you created the room while signed in, you're the host from any browser you sign into — phone, laptop, incognito. The host link below is for handing the controls to a co-host.
 
-On Apple Silicon, follow Homebrew’s “Next steps” so `brew` is on your PATH, then open a new Terminal.
+The room page has a **Show host link** button. Save that link. Opening it in any browser — your phone, a second laptop, after clearing cookies — makes that browser the host. Don't paste it in the Zoom chat; anyone with it can drive the room.
 
-#### 2. Clone once and run setup
+### How vocal removal works now
 
-```sh
-git clone https://github.com/theblkguy/all-hands-sing-along.git
-cd all-hands-sing-along
-./script/setup
-```
+- Upload an mp3/wav/m4a/ogg with your song. The server hashes the file and checks the **stem cache** first. If anyone has ever separated that exact file, the instrumental is attached immediately.
+- Otherwise the server hands a signed URL to **Replicate**, which runs Demucs on a GPU (roughly a minute, a couple of cents). The result gets a quiet guide vocal mixed in, is stored in Tigris, and is written to the cache for next time.
+- No Mac worker, no Terminal. If the deployment has no `REPLICATE_API_TOKEN`, the app falls back to the old behaviour and the room page shows the **Show Mac command** hint again (see [Mac worker fallback](#mac-worker-fallback)).
 
-That installs Homebrew Python, Demucs, ffmpeg, and Elixir into this folder. Safe to re-run. If it says `mix` was not found, open a **new** Terminal so Elixir is on your PATH, then run `./script/setup` again.
-
-Elixir and OTP versions are pinned in `.tool-versions` (asdf: Erlang 27.3, Elixir 1.18.4). The Dockerfile uses the same pair.
-
-Only one Mac needs this. Everyone else just joins in the browser.
-
-#### 3. Create a room, then start the worker
-
-1. Open the [live site](https://all-hands-sing-along.fly.dev) and **Create room**.
-2. On the room page, click **Show Mac command**. It looks like:
-
-```sh
-./script/worker --room ABC123 --token YOUR_HOST_TOKEN
-```
-
-3. Run it from the `all-hands-sing-along` folder. Leave that window open while people sing.
-
-The worker only processes **your** room. Another host on the same site runs their own command. Guests never need a token.
-
-First song of the day can take several minutes (Demucs downloads its model, then runs on CPU). After that, leave Terminal open and keep the Mac awake.
-
-Next session: `cd all-hands-sing-along` and run the new room’s worker command. Re-run `./script/setup` only if you deleted `.venv` or the folder.
+You can still skip separation for any song: attach a karaoke file, or **Play original**.
 
 ---
 
 ## Run it locally
 
-Same Mac setup as above. After `./script/setup`, this computer **is** the karaoke server. Demucs runs here automatically — you do not need `./script/worker`.
+For developers, or an office with no internet you trust. After `./script/setup`, this computer **is** the karaoke server.
+
+Install Homebrew first if `brew --version` doesn't work:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+On Apple Silicon, follow Homebrew's "Next steps" so `brew` is on your PATH, then open a new Terminal. Then:
 
 ```sh
 git clone https://github.com/theblkguy/all-hands-sing-along.git
 cd all-hands-sing-along
 ./script/setup
 ```
+
+That installs Homebrew Python, Demucs, ffmpeg, and Elixir into this folder. Safe to re-run. Elixir and OTP versions are pinned in `.tool-versions` (asdf: Erlang 27.3, Elixir 1.18.4).
+
+Locally there's no sign-in unless you export `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (redirect URI `http://localhost:4000/auth/google/callback`).
+
+Vocal removal locally uses the Demucs that setup installed. To use Replicate instead (faster, no model download), `export REPLICATE_API_TOKEN=r8_...` before starting the server; local files are uploaded to Replicate for you.
 
 If setup asked you to open a new Terminal for `mix`, do that and re-run `./script/setup`. Then:
 
@@ -118,16 +108,16 @@ Use the same browser for the whole session — the host cookie lives there.
 
 ### Host checklist
 
-- Keep the worker (live site) or server (local) Terminal running, and keep the host browser tab open.
+- Keep the host browser tab open. Running locally, keep the server Terminal running too.
 - Wear headphones. Zoom (or Meet) is for faces.
-- Do not clear this site’s cookies mid-session or you will lose host controls.
+- Save your host link (or sign in) so you can get host controls back if you lose the tab or clear cookies.
 - Prevent sleep, or plug in and keep the lid open.
 
 ### If a song is stuck on Preparing
 
 - **No audio yet** — upload mp3 / wav / m4a / ogg.
 - **No timed lyrics** — try a fuller title, pick a result, or paste an `.lrc`.
-- **Waiting on your Mac…** — run the host command from the room page (`./script/worker …`).
+- **Waiting to remove vocals…** — Replicate is queued; usually under a minute. **Waiting on your Mac…** means this deploy has no Replicate token and needs the Mac worker.
 - **Removing vocals…** — wait, or **Cancel** / **Play original**.
 - If you already have a karaoke file, upload it and **Play original**.
 
@@ -135,7 +125,7 @@ Use the same browser for the whole session — the host cookie lives there.
 
 ## Deploy on Fly.io
 
-The Fly machine does not run Demucs. After deploy, each host still runs `./script/worker` on their Mac.
+The Fly machine does not run Demucs itself; it calls Replicate. Nobody runs anything on a Mac.
 
 ### 1. Install the Fly CLI and log in
 
@@ -174,20 +164,58 @@ That provides `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3
 
 ```sh
 fly secrets set SECRET_KEY_BASE="$(mix phx.gen.secret)"
+fly secrets set REPLICATE_API_TOKEN="r8_..."
 fly deploy
 ```
 
-Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room code, then start the worker from the room page on your Mac.
+`REPLICATE_API_TOKEN` comes from [replicate.com/account](https://replicate.com/account). Without it the app still deploys, but vocal removal falls back to the [Mac worker](#mac-worker-fallback).
+
+Open `https://<app>.fly.dev`. Create a room as host, share that URL and the room code, and save your host link.
 
 If you use a custom domain, set `PHX_HOST` to that domain in `fly.toml`.
 
-If the app name is not `all-hands-sing-along`, pass the URL to the worker:
+### 5. Sign in with Google (optional)
+
+Skip this and the site stays open to anyone with the URL. To limit it to your company:
+
+1. In Google Cloud console, create an OAuth client of type **Web application**.
+2. Add `https://<app>.fly.dev/auth/google/callback` as an authorized redirect URI (use your custom domain if you set `PHX_HOST`).
+3. Set the secrets and redeploy:
+
+```sh
+fly secrets set GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..." GOOGLE_ALLOWED_DOMAINS="yourcompany.com"
+fly deploy
+```
+
+`GOOGLE_ALLOWED_DOMAINS` is comma-separated and checked server-side, so a personal Gmail account can't get in even if it reaches the consent screen. Leave it unset to accept any Google account.
+
+### Mac worker fallback
+
+Only needed when the deploy has **no** `REPLICATE_API_TOKEN`. In that case the Fly VM can't strip vocals itself, so the host's Mac does it for the host's room only, and the room page shows a **Show Mac command** button.
+
+One-time setup on that Mac (Homebrew, Python, Demucs, ffmpeg, Elixir go into the project folder):
+
+```sh
+git clone https://github.com/theblkguy/all-hands-sing-along.git
+cd all-hands-sing-along
+./script/setup
+```
+
+Each session: create the room, click **Show Mac command**, and run it from the `all-hands-sing-along` folder. Leave that Terminal open and keep the Mac awake. It looks like:
+
+```sh
+./script/worker --room ABC123 --token YOUR_HOST_TOKEN
+```
+
+If the app name is not `all-hands-sing-along`, pass the URL too:
 
 ```sh
 ./script/worker --room … --token … --url https://your-app.fly.dev
 ```
 
-### 5. Useful commands
+The first song of the day can take several minutes while Demucs downloads its model and runs on CPU.
+
+### 6. Useful commands
 
 ```sh
 fly status
@@ -208,7 +236,7 @@ fly ssh console
 | Hosted site waits on your Mac | Run the command on the room page; Mac must stay awake |
 | Wrong room’s songs processing | Each host must use **their** `--room` and `--token` |
 | Guests cannot open the local URL | Same Wi-Fi, `ipconfig getifaddr en0`, allow firewall, use `http://IP:4000` |
-| Guests see a different room / not host | Only the browser that clicked **Create room** is host. Guests must **Join** with the code |
+| Guests see a different room / not host | Host is the browser that clicked **Create room**, opened the host link, or is signed in as the room's owner. Guests must **Join** with the code |
 | Lyrics never appear | Need internet to lrclib.net, or paste an `.lrc` |
 | First song takes forever | Normal. Demucs is downloading its model, then processing on CPU |
 

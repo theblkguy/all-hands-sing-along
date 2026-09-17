@@ -13,11 +13,13 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     assert has_element?(view, "#how-it-works")
     assert html =~ "How it works"
     assert html =~ "Host hits Play"
-    assert has_element?(view, "#host-mac-setup")
+    # Test env uses the stub adapter, so the app is not in Mac-worker mode.
+    assert has_element?(view, "#host-no-setup")
+    refute has_element?(view, "#host-mac-setup")
     refute has_element?(view, "#copy-setup-brew")
     refute has_element?(view, "#copy-setup-clone")
     refute html =~ "https://github.com/theblkguy/all-hands-sing-along.git"
-    assert html =~ "the README"
+    refute html =~ "the README"
     assert has_element?(view, "#join-no-install")
     join = view |> element("#join-room-form") |> render()
     refute join =~ "Homebrew"

@@ -3,6 +3,12 @@
 #
 # Audio: `fly storage create` (Tigris). The /data volume is for SQLite only.
 # UPLOADS_PATH is a fallback if Tigris env vars are not set.
+#
+# Vocal removal: `fly secrets set REPLICATE_API_TOKEN=r8_...` and Demucs runs
+# on Replicate. No host needs Homebrew, Python, or ./script/worker.
+#
+# Sign-in: `fly secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...`
+# and optionally GOOGLE_ALLOWED_DOMAINS="yourcompany.com".
 
 app = "all-hands-sing-along"
 primary_region = "iad"

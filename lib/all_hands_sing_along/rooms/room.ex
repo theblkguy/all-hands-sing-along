@@ -12,6 +12,8 @@ defmodule AllHandsSingAlong.Rooms.Room do
     field :code, :string
     field :host_token, :string, redact: true
 
+    belongs_to :host_user, AllHandsSingAlong.Accounts.User
+
     has_many :songs, AllHandsSingAlong.Catalog.Song
     has_many :queue_entries, AllHandsSingAlong.Queue.Entry
 
@@ -21,8 +23,9 @@ defmodule AllHandsSingAlong.Rooms.Room do
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(room, attrs) do
     room
-    |> cast(attrs, [:code, :host_token])
+    |> cast(attrs, [:code, :host_token, :host_user_id])
     |> validate_required([:code, :host_token])
+    |> foreign_key_constraint(:host_user_id)
     |> update_change(:code, &normalize_code/1)
     |> validate_length(:code, min: 4, max: 8)
     |> unique_constraint(:code)

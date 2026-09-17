@@ -20,12 +20,20 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   @impl true
   def mount(%{"code" => code}, session, socket) do
+    socket = assign_new(socket, :current_user, fn -> nil end)
     display_name = session["display_name"]
     guest_id = session["guest_id"] || Ecto.UUID.generate()
 
+    current_user = socket.assigns[:current_user]
+    display_name = display_name || (current_user && current_user.name)
+
     with {:ok, room} <- Rooms.get_room_by_code(code),
          true <- is_binary(display_name) and display_name != "" do
-      host_token = Auth.host_token_from_session(session, room.code)
+      # Cookie token (Create room / host link) or signed-in ownership — either works.
+      host_token =
+        Auth.host_token_from_session(session, room.code) ||
+          Rooms.owner_token(room, current_user)
+
       host? = Rooms.host?(room, host_token)
 
       socket =
@@ -42,9 +50,11 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         |> assign(:lyric_preview, nil)
         |> assign(:changing_lyrics_id, nil)
         |> assign(:attaching_audio_id, nil)
-        |> assign(:stem_local?, AllHandsSingAlong.Catalog.StemSeparator.local_available?())
+        |> assign(:stem_mode, AllHandsSingAlong.Catalog.StemSeparator.mode())
         |> assign(:host_token, nil)
         |> assign(:show_worker_command?, false)
+        |> assign(:host_link, nil)
+        |> assign(:show_host_link?, false)
         |> assign(:show_onboarding?, false)
         |> allow_upload(:audio,
           accept: Uploads.audio_accept(),
@@ -112,6 +122,24 @@ defmodule AllHandsSingAlongWeb.RoomLive do
     else
       {:noreply, put_flash(socket, :error, "Only the host can do that")}
     end
+  end
+
+  def handle_event("reveal_host_link", _params, socket) do
+    if socket.assigns.host? do
+      token = Auth.host_token(socket)
+      code = socket.assigns.room.code
+
+      {:noreply,
+       socket
+       |> assign(:show_host_link?, true)
+       |> assign(:host_link, url(~p"/rooms/#{code}/host/#{token}"))}
+    else
+      {:noreply, put_flash(socket, :error, "Only the host can do that")}
+    end
+  end
+
+  def handle_event("hide_host_link", _params, socket) do
+    {:noreply, socket |> assign(:show_host_link?, false) |> assign(:host_link, nil)}
   end
 
   def handle_event("play", _params, socket), do: Playback.play(socket)
@@ -182,10 +210,10 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <.gate
         host?={@host?}
-        stem_local?={@stem_local?}
+        stem_local?={@stem_mode != :remote_worker}
         show?={@show_onboarding?}
         room_code={@room.code}
       />

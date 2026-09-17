@@ -5,6 +5,7 @@ defmodule AllHandsSingAlong.Rooms do
   """
   require Logger
 
+  alias AllHandsSingAlong.Accounts.User
   alias AllHandsSingAlong.Catalog
   alias AllHandsSingAlong.Queue
   alias AllHandsSingAlong.Queue.Entry
@@ -16,11 +17,21 @@ defmodule AllHandsSingAlong.Rooms do
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   @code_length 6
 
-  @spec create_room() ::
+  @spec create_room(User.t() | nil) ::
           {:ok, Room.t()} | {:error, :code_collision} | {:error, Ecto.Changeset.t()}
-  def create_room do
-    insert_room(5)
-  end
+  def create_room(host_user \\ nil)
+  def create_room(%User{id: id}), do: insert_room(5, id)
+  def create_room(nil), do: insert_room(5, nil)
+
+  @doc """
+  The signed-in owner of a room is host from any browser, no cookie or link
+  required. Returns the room's token so the existing token-based commands work.
+  """
+  @spec owner_token(Room.t(), User.t() | nil) :: String.t() | nil
+  def owner_token(%Room{host_user_id: id, host_token: token}, %User{id: id}) when is_integer(id),
+    do: token
+
+  def owner_token(%Room{}, _), do: nil
 
   @spec get_room_by_code(String.t()) :: {:ok, Room.t()} | {:error, :not_found}
   def get_room_by_code(code) when is_binary(code) do
@@ -291,8 +302,8 @@ defmodule AllHandsSingAlong.Rooms do
     }
   end
 
-  defp insert_room(retries) when retries > 0 do
-    attrs = %{code: generate_code(), host_token: generate_token()}
+  defp insert_room(retries, host_user_id) when retries > 0 do
+    attrs = %{code: generate_code(), host_token: generate_token(), host_user_id: host_user_id}
 
     case %Room{} |> Room.changeset(attrs) |> Repo.insert() do
       {:ok, room} ->
@@ -300,7 +311,7 @@ defmodule AllHandsSingAlong.Rooms do
 
       {:error, %Ecto.Changeset{errors: errors}} = error ->
         if Keyword.has_key?(errors, :code) do
-          insert_room(retries - 1)
+          insert_room(retries - 1, host_user_id)
         else
           Logger.error("Failed to create room", errors: inspect(errors))
           error
@@ -308,7 +319,7 @@ defmodule AllHandsSingAlong.Rooms do
     end
   end
 
-  defp insert_room(_retries) do
+  defp insert_room(_retries, _host_user_id) do
     Logger.error("exhausted room code retries")
     {:error, :code_collision}
   end

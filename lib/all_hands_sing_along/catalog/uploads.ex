@@ -74,6 +74,24 @@ defmodule AllHandsSingAlong.Catalog.Uploads do
   @spec serve(String.t()) :: {:file, String.t()} | {:redirect, String.t()} | :not_found
   def serve(path) when is_binary(path), do: adapter().serve(path)
 
+  @doc """
+  SHA-256 of a file on disk, lowercase hex. Streams so a 32 MB upload does not
+  get read into memory twice. Used as the stem-cache key.
+  """
+  @spec sha256_file(String.t()) :: {:ok, String.t()} | {:error, term()}
+  def sha256_file(path) when is_binary(path) do
+    hash =
+      path
+      |> File.stream!(1_048_576)
+      |> Enum.reduce(:crypto.hash_init(:sha256), &:crypto.hash_update(&2, &1))
+      |> :crypto.hash_final()
+      |> Base.encode16(case: :lower)
+
+    {:ok, hash}
+  rescue
+    error -> {:error, error}
+  end
+
   @spec read_text!(String.t()) :: String.t()
   def read_text!(path) when is_binary(path) do
     File.read!(path)

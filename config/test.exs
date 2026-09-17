@@ -38,3 +38,12 @@ config :all_hands_sing_along, AllHandsSingAlong.Catalog.StemSeparator,
   adapter: AllHandsSingAlong.Catalog.StubStemAdapter,
   enabled: true,
   sync: true
+
+# Auth stays off by default so the existing suite runs anonymously; auth tests
+# flip `enabled` on and stub Google with Req.Test.
+config :all_hands_sing_along, AllHandsSingAlong.Auth.Google,
+  enabled: false,
+  client_id: "test-client",
+  client_secret: "test-secret",
+  allowed_domains: [],
+  req_options: [plug: {Req.Test, AllHandsSingAlong.Auth.Google}]

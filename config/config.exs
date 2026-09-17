@@ -78,6 +78,17 @@ config :all_hands_sing_along, AllHandsSingAlong.Catalog.StemSeparator,
   enabled: true,
   sync: false
 
+# Sign in with Google. Off unless GOOGLE_CLIENT_ID/SECRET are set at runtime
+# (config/runtime.exs); when off, the app is open and works as before.
+config :all_hands_sing_along, AllHandsSingAlong.Auth.Google,
+  enabled: false,
+  allowed_domains: [],
+  req_options: []
+
+# Cloud vocal removal. Setting REPLICATE_API_TOKEN (any env) switches the
+# StemSeparator adapter to Replicate in config/runtime.exs.
+config :all_hands_sing_along, AllHandsSingAlong.Catalog.ReplicateStemAdapter, model: "htdemucs"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
