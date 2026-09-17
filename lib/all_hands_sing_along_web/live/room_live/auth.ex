@@ -41,13 +41,13 @@ defmodule AllHandsSingAlongWeb.RoomLive.Auth do
   def error_text(:unauthorized), do: "Only the host can do that"
   def error_text(:missing_audio), do: "This song still needs audio"
   def error_text(:missing_lyrics), do: "This song still needs lyrics"
-  def error_text(:not_installed), do: "Can't strip vocals yet. Run setup on this Mac."
+  def error_text(:not_installed), do: "Can't remove vocals yet. Run setup on this Mac."
   def error_text(:missing_ffmpeg), do: "Need ffmpeg to mix a quiet guide vocal."
 
   def error_text(:missing_numpy),
-    do: "Can't strip vocals: NumPy is missing. Re-run ./script/setup."
+    do: "Can't remove vocals: NumPy is missing. Re-run ./script/setup."
 
-  def error_text(:stem_failed), do: "Couldn't strip the vocals"
+  def error_text(:stem_failed), do: "Couldn't remove the vocals"
   def error_text(:not_ready), do: "Only Ready songs can move"
   def error_text(:not_found), do: "Not found"
   def error_text(:invalid_lrc), do: "That doesn't look like timed .lrc lyrics"

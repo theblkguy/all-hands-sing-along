@@ -70,7 +70,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
     <div id="stem-worker-hint" class="glass-panel rounded-2xl px-4 py-3 text-sm text-amber-100/85">
       <p class="font-medium text-amber-100">Start the worker on your Mac</p>
       <p class="mt-1 text-white/70">
-        This strips vocals for this room only. After the README setup, copy the command and run it
+        This removes vocals for this room only. After the README setup, copy the command and run it
         from the project folder. Leave that Terminal open. Guests don't need it.
       </p>
       <.button
@@ -336,7 +336,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           <.error :for={err <- all_upload_errors(@uploads.lrc)}>{upload_error_text(err)}</.error>
           <.upload_progress id="lrc-upload-progress" entries={@uploads.lrc.entries} />
         </div>
-        <.button type="submit" variant="primary">Add me to the queue</.button>
+        <.button type="submit" variant="primary">Add to queue</.button>
       </.form>
 
       <div :if={@reusable_songs != []} id="reuse-songs" class="glass-panel space-y-3 rounded-3xl p-6">
@@ -441,7 +441,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
               id={"stem-failed-#{@entry.id}"}
               class="text-sm text-warning"
             >
-              {@entry.song.stem_error || "Couldn't strip the vocals."}
+              {@entry.song.stem_error || "Couldn't remove the vocals."}
             </p>
           </div>
           <span class="rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] uppercase tracking-wider text-white/60">
@@ -536,7 +536,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           :if={@host? and can_preview_lyrics?(@entry)}
           id={"tune-lyrics-#{@entry.id}"}
           icon="hero-adjustments-horizontal"
-          label="Line up lyrics"
+          label="Adjust lyric timing"
           phx-click="tune_lyrics"
           phx-value-id={@entry.id}
         />

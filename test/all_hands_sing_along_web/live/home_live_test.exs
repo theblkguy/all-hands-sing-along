@@ -12,7 +12,7 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     assert html =~ "Karaoke night"
     assert has_element?(view, "#how-it-works")
     assert html =~ "How it works"
-    assert html =~ "Host hits Play"
+    assert html =~ "Host starts the song"
     # Test env uses the stub adapter, so the app is not in Mac-worker mode.
     assert has_element?(view, "#host-no-setup")
     refute has_element?(view, "#host-mac-setup")

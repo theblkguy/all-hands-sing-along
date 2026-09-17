@@ -457,10 +457,10 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
     :ok
   end
 
-  defp error_message(:not_installed), do: "Can't strip vocals yet. Run setup on this Mac."
+  defp error_message(:not_installed), do: "Can't remove vocals yet. Run setup on this Mac."
 
   defp error_message(:missing_numpy),
-    do: "Can't strip vocals: NumPy is missing. Re-run ./script/setup."
+    do: "Can't remove vocals: NumPy is missing. Re-run ./script/setup."
 
   defp error_message(:missing_ffmpeg),
     do: "Need ffmpeg to mix a quiet guide vocal."
@@ -474,7 +474,7 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
     do: "Vocal removal is paused: the Replicate account needs billing."
 
   defp error_message(:timeout), do: "Vocal removal took too long. Try again or Play original."
-  defp error_message(_), do: "Couldn't strip the vocals"
+  defp error_message(_), do: "Couldn't remove the vocals"
 
   defp reason_to_error(_), do: :stem_failed
 

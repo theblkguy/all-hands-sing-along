@@ -59,7 +59,7 @@ defmodule AllHandsSingAlongWeb.Onboarding do
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={4} class="mt-0.5 size-6 text-xs" />
               <span>
-                Play, Pause, and Skip move everyone. Later / Earlier if the lyrics are off.
+                Start singer, Pause, and Skip move everyone. Later / Earlier if the lyrics are off.
               </span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
@@ -75,7 +75,7 @@ defmodule AllHandsSingAlongWeb.Onboarding do
             id="onboarding-worker-note"
             class="mt-4 text-sm leading-relaxed text-amber-100/80"
           >
-            To strip vocals, click Show Mac command at the top of this page and run it in Terminal
+            To remove vocals, click Show Mac command at the top of this page and run it in Terminal
             (after the README setup).
           </p>
 

@@ -125,7 +125,7 @@ defmodule AllHandsSingAlongWeb.HomeLive do
             </div>
             <div class="glass-panel rounded-3xl p-5 transition duration-200 hover:border-amber-200/25 hover:bg-white/[0.07]">
               <.step_item n={3} class="size-8 text-sm" />
-              <h3 class="mt-4 font-medium text-white">Host hits Play</h3>
+              <h3 class="mt-4 font-medium text-white">Host starts the song</h3>
               <p class="mt-2 text-sm leading-relaxed text-white/60">
                 When a song is Ready, the host starts the singer.
               </p>
@@ -138,7 +138,7 @@ defmodule AllHandsSingAlongWeb.HomeLive do
           id="host-mac-setup"
           class="text-sm leading-relaxed text-white/55"
         >
-          Want vocals stripped? First-time setup is in <a
+          Want vocals removed? First-time setup is in <a
             href="https://github.com/theblkguy/all-hands-sing-along#mac-worker-fallback"
             class="text-amber-100/90 underline decoration-amber-100/30 underline-offset-4 transition hover:text-white"
           >
