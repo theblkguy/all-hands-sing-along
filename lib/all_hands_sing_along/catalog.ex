@@ -215,11 +215,11 @@ defmodule AllHandsSingAlong.Catalog do
   def has_original?(%Song{} = song), do: present?(song.original_path)
 
   @spec original_path(Song.t() | nil) :: String.t() | nil
-  def original_path(nil), do: nil
+  defp original_path(nil), do: nil
 
-  def original_path(%Song{original_path: path}) when is_binary(path) and path != "", do: path
+  defp original_path(%Song{original_path: path}) when is_binary(path) and path != "", do: path
 
-  def original_path(%Song{}), do: nil
+  defp original_path(%Song{}), do: nil
 
   @spec clamp_lyric_offset(integer()) :: integer()
   def clamp_lyric_offset(ms) when is_integer(ms) do

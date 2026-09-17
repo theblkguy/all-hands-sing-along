@@ -109,7 +109,7 @@ defmodule AllHandsSingAlong.Queue do
   end
 
   @spec sync_preparation(Entry.t()) :: {:ok, Entry.t()} | {:error, Ecto.Changeset.t()}
-  def sync_preparation(%Entry{} = entry) do
+  defp sync_preparation(%Entry{} = entry) do
     entry = Repo.preload(entry, :song, force: true)
 
     cond do
