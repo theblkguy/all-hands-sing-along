@@ -99,8 +99,8 @@ defmodule AllHandsSingAlongWeb.HomeLive do
             All Hands Sing Song
           </h1>
           <p class="text-base leading-relaxed text-white/65">
-            Someone hosts. Everyone else opens this page for the songs and lyrics.
-            Stay on Zoom for faces, and wear headphones so the track doesn't leak into the call.
+            One person hosts. Everyone else opens this page to follow the songs and lyrics.
+            Stay on the video call for faces, and wear headphones so the track doesn't leak into it.
           </p>
         </div>
 
@@ -120,7 +120,7 @@ defmodule AllHandsSingAlongWeb.HomeLive do
               <.step_item n={2} class="size-8 text-sm" />
               <h3 class="mt-4 font-medium text-white">Add a song</h3>
               <p class="mt-2 text-sm leading-relaxed text-white/60">
-                Put your name on a title and artist. You can add audio now or later.
+                Claim a song with its title and artist. Audio can come now or later.
               </p>
             </div>
             <div class="glass-panel rounded-3xl p-5 transition duration-200 hover:border-amber-200/25 hover:bg-white/[0.07]">
@@ -151,8 +151,8 @@ defmodule AllHandsSingAlongWeb.HomeLive do
           id="host-no-setup"
           class="text-sm leading-relaxed text-white/55"
         >
-          Nothing to install. Upload a song and vocals come off automatically; tracks anyone has
-          used before are ready instantly.
+          Upload a song and the vocals are removed automatically. Anything someone has used
+          before is ready to sing right away.
         </p>
 
         <section
@@ -221,7 +221,7 @@ defmodule AllHandsSingAlongWeb.HomeLive do
           id="past-rooms"
           class="space-y-4"
         >
-          <h2 class="text-lg font-medium text-white">Rooms you were in</h2>
+          <h2 class="text-lg font-medium text-white">Your recent rooms</h2>
           <ul class="grid gap-3 sm:grid-cols-2">
             <li :for={room <- @past_rooms} id={"past-room-#{room.code}"}>
               <.form

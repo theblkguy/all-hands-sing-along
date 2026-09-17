@@ -47,7 +47,7 @@ defmodule AllHandsSingAlongWeb.Onboarding do
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={2} class="mt-0.5 size-6 text-xs" />
-              <span>Wear headphones so Zoom doesn't pick up the track.</span>
+              <span>Wear headphones so the video call doesn't pick up the track.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={3} class="mt-0.5 size-6 text-xs" />
@@ -82,7 +82,7 @@ defmodule AllHandsSingAlongWeb.Onboarding do
           <ol :if={not @host?} class="mt-6 space-y-4">
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={1} class="mt-0.5 size-6 text-xs" />
-              <span>Wear headphones, and stay on Zoom for faces.</span>
+              <span>Wear headphones, and stay on the video call for faces.</span>
             </li>
             <li class="flex gap-3 text-sm leading-relaxed text-white/75">
               <.step_item n={2} class="mt-0.5 size-6 text-xs" />

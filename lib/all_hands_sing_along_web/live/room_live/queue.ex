@@ -42,7 +42,8 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
 
     socket = assign(socket, :song_form, to_form(changeset, as: :song))
 
-    with {:ok, %{title: title, artist: artist}} <- Ecto.Changeset.apply_action(changeset, :insert),
+    with {:ok, %{title: title, artist: artist}} <-
+           Ecto.Changeset.apply_action(changeset, :insert),
          :ok <- upload_ok(socket, :audio),
          :ok <- upload_ok(socket, :lrc),
          :ok <- audio_cap_ok(socket, :audio) do

@@ -48,15 +48,12 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
 
   defp headphones_banner(assigns) do
     ~H"""
-    <div
-      class="glass-panel flex items-center gap-3 rounded-full px-4 py-2 text-sm text-amber-100/80"
-      title="Headphones keep the track out of Zoom."
-    >
+    <div class="glass-panel flex items-center gap-3 rounded-full px-4 py-2 text-sm text-amber-100/80">
       <.icon name="hero-speaker-x-mark" class="size-5 shrink-0 text-amber-200" />
       <span class="sr-only">
-        Headphones keep the track out of Zoom.
+        Headphones keep the track off the video call.
       </span>
-      <span class="hidden sm:inline">Headphones keep the track out of Zoom.</span>
+      <span class="hidden sm:inline">Headphones keep the track off the video call.</span>
     </div>
     """
   end
@@ -178,7 +175,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           <.icon_button id="pause-song" icon="hero-pause" label="Pause" phx-click="pause" />
           <.icon_button id="skip-song" icon="hero-forward" label="Skip" phx-click="skip" />
         </div>
-        <p class="text-xs text-white/45">Backing track</p>
+        <p class="text-xs text-white/45">These move the song for everyone</p>
       </div>
     </div>
     """
@@ -236,7 +233,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         id="singer-muted-note"
         class="text-sm text-amber-100/70"
       >
-        Your headphones are muted on this song while you check the next one.
+        You're listening to the preview — the room still hears the current singer.
       </p>
     </div>
     """
@@ -265,7 +262,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         />
       </div>
       <p class="text-sm text-white/55">
-        This is the original, vocals on. Everyone else still hears the singer.
+        The original track, vocals included, so you can line the lyrics up before it's their turn.
       </p>
       <.lyric_stage
         id="lyric-preview"
@@ -316,7 +313,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
       >
         <h3 class="font-medium text-white">Add a song</h3>
         <p id="add-song-hint" class="text-sm leading-relaxed text-white/55">
-          We'll look up lyrics. Audio can wait.
+          Lyrics are found for you. The audio file can come later.
         </p>
         <.input field={@song_form[:title]} id="song-title" label="Song title" />
         <.input field={@song_form[:artist]} id="song-artist" label="Artist" />
@@ -340,7 +337,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
       </.form>
 
       <div :if={@reusable_songs != []} id="reuse-songs" class="glass-panel space-y-3 rounded-3xl p-6">
-        <h3 class="font-medium text-white">From a night you were at</h3>
+        <h3 class="font-medium text-white">Songs from your past rooms</h3>
         <ul class="space-y-2">
           <li
             :for={song <- @reusable_songs}
@@ -413,7 +410,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
               id={"no-audio-#{@entry.id}"}
               class="text-sm text-warning"
             >
-              No audio yet. Upload a file.
+              No audio yet — upload a file to get started.
             </p>
             <p
               :if={@entry.status == :preparing and not Catalog.has_lyrics?(@entry.song)}

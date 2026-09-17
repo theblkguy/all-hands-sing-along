@@ -26,7 +26,7 @@ defmodule AllHandsSingAlong.Catalog do
   @spec fixture_lrc() :: String.t()
   def fixture_lrc do
     """
-    [00:00.00]Headphones on — Zoom is for faces
+    [00:00.00]Headphones on — the video call is for faces
     [00:02.00]This is a demo backing track
     [00:05.00]Add a song to the queue to sing for real
     """
