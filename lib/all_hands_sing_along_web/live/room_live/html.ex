@@ -6,9 +6,12 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
 
   alias AllHandsSingAlong.Catalog
 
-  def can_attach_audio?(host?, display_name, entry) do
-    host? or entry.singer_name == display_name
+  def can_attach_audio?(host?, display_name, entry, current_user \\ nil) do
+    host? or entry.singer_name == display_name or matching_user?(entry, current_user)
   end
+
+  defp matching_user?(%{user_id: id}, %{id: id}) when is_integer(id), do: true
+  defp matching_user?(_, _), do: false
 
   def can_preview_lyrics?(entry) do
     entry.status in [:requested, :preparing, :ready] and
@@ -336,6 +339,29 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         <.button type="submit" variant="primary">Add me to the queue</.button>
       </.form>
 
+      <div :if={@reusable_songs != []} id="reuse-songs" class="glass-panel space-y-3 rounded-3xl p-6">
+        <h3 class="font-medium text-white">From a night you were at</h3>
+        <ul class="space-y-2">
+          <li
+            :for={song <- @reusable_songs}
+            id={"reuse-song-#{song.id}"}
+            class="flex flex-wrap items-center justify-between gap-2"
+          >
+            <span class="text-sm text-white/80">
+              {Catalog.format_title(song.title, song.artist)}
+            </span>
+            <.button
+              id={"reuse-song-btn-#{song.id}"}
+              type="button"
+              phx-click="reuse_song"
+              phx-value-id={song.id}
+            >
+              Add
+            </.button>
+          </li>
+        </ul>
+      </div>
+
       <ul id="queue" phx-update="stream" class="space-y-2">
         <li
           id="queue-empty"
@@ -349,6 +375,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           entry={entry}
           host?={@host?}
           display_name={@display_name}
+          current_user={@current_user}
           lyric_search={@lyric_search}
           changing_lyrics_id={@changing_lyrics_id}
           attaching_audio_id={@attaching_audio_id}
@@ -364,6 +391,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
   attr :entry, :map, required: true
   attr :host?, :boolean, required: true
   attr :display_name, :string, required: true
+  attr :current_user, :any, default: nil
   attr :lyric_search, :any, default: nil
   attr :changing_lyrics_id, :any, default: nil
   attr :attaching_audio_id, :any, default: nil
@@ -446,7 +474,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         </div>
         <div
           :if={
-            can_attach_audio?(@host?, @display_name, @entry) and
+            can_attach_audio?(@host?, @display_name, @entry, @current_user) and
               Catalog.missing_audio?(@entry.song) and
               @entry.status in [:requested, :preparing]
           }

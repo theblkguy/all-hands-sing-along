@@ -22,6 +22,9 @@ defmodule AllHandsSingAlongWeb.UserAuth do
   @spec required?() :: boolean()
   def required?, do: Google.enabled?()
 
+  @spec username_ready?(User.t() | nil) :: boolean()
+  def username_ready?(user), do: User.username?(user)
+
   # -- Plugs ------------------------------------------------------------------
 
   @doc "Loads `conn.assigns.current_user` from the session, or nil."
@@ -46,18 +49,43 @@ defmodule AllHandsSingAlongWeb.UserAuth do
     end
   end
 
+  @doc "When auth is on, signed-in people need a username before rooms."
+  def require_username(conn, _opts) do
+    cond do
+      not required?() ->
+        conn
+
+      username_ready?(conn.assigns[:current_user]) ->
+        conn
+
+      true ->
+        conn
+        |> put_flash(:error, "Pick a username to continue.")
+        |> redirect(to: ~p"/")
+        |> halt()
+    end
+  end
+
   @doc "Sign the user in: reset the session (fixation), keep return_to, set the id."
   @spec log_in_user(Plug.Conn.t(), User.t()) :: Plug.Conn.t()
   def log_in_user(conn, %User{} = user) do
     return_to = get_session(conn, @return_to_key)
 
-    conn
-    |> configure_session(renew: true)
-    |> clear_session()
-    |> put_session(@session_key, user.id)
-    |> put_session(:display_name, user.name)
-    |> put_session(:guest_id, "user-#{user.id}")
-    |> redirect(to: return_to || ~p"/")
+    conn =
+      conn
+      |> configure_session(renew: true)
+      |> clear_session()
+      |> put_session(@session_key, user.id)
+      |> put_session(:guest_id, "user-#{user.id}")
+      |> maybe_put_display_name(user)
+
+    if username_ready?(user) do
+      redirect(conn, to: return_to || ~p"/")
+    else
+      conn
+      |> maybe_keep_return_to(return_to)
+      |> redirect(to: ~p"/")
+    end
   end
 
   @spec log_out_user(Plug.Conn.t()) :: Plug.Conn.t()
@@ -68,6 +96,19 @@ defmodule AllHandsSingAlongWeb.UserAuth do
     |> put_flash(:info, "Signed out.")
     |> redirect(to: ~p"/")
   end
+
+  defp maybe_put_display_name(conn, user) do
+    case User.display_name(user) do
+      nil -> conn
+      name -> put_session(conn, :display_name, name)
+    end
+  end
+
+  defp maybe_keep_return_to(conn, return_to) when is_binary(return_to) do
+    put_session(conn, @return_to_key, return_to)
+  end
+
+  defp maybe_keep_return_to(conn, _), do: conn
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, @return_to_key, current_path(conn))
@@ -80,6 +121,7 @@ defmodule AllHandsSingAlongWeb.UserAuth do
   @doc """
   `on_mount` hook. `:mount_current_user` just assigns; `:require_user` also
   redirects to sign-in when auth is on and nobody is signed in.
+  `:require_username` also sends people home until they pick a username.
   """
   def on_mount(:mount_current_user, _params, session, socket) do
     {:cont, assign_current_user(socket, session)}
@@ -88,13 +130,21 @@ defmodule AllHandsSingAlongWeb.UserAuth do
   def on_mount(:require_user, _params, session, socket) do
     socket = assign_current_user(socket, session)
 
-    if required?() and is_nil(socket.assigns.current_user) do
-      {:halt,
-       socket
-       |> Phoenix.LiveView.put_flash(:error, "Sign in to continue.")
-       |> Phoenix.LiveView.redirect(to: ~p"/auth/google")}
-    else
-      {:cont, socket}
+    cond do
+      required?() and is_nil(socket.assigns.current_user) ->
+        {:halt,
+         socket
+         |> Phoenix.LiveView.put_flash(:error, "Sign in to continue.")
+         |> Phoenix.LiveView.redirect(to: ~p"/auth/google")}
+
+      required?() and not username_ready?(socket.assigns.current_user) ->
+        {:halt,
+         socket
+         |> Phoenix.LiveView.put_flash(:error, "Pick a username to continue.")
+         |> Phoenix.LiveView.redirect(to: ~p"/")}
+
+      true ->
+        {:cont, socket}
     end
   end
 

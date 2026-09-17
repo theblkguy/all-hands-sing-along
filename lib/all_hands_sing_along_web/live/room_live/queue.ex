@@ -51,7 +51,8 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
           attrs = %{
             singer_name: socket.assigns.display_name,
             song_title: title,
-            song_id: song.id
+            song_id: song.id,
+            user_id: current_user_id(socket)
           }
 
           case Queue.enqueue(socket.assigns.room, attrs) do
@@ -170,6 +171,28 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
     end)
   end
 
+  def reuse(socket, id) do
+    room = socket.assigns.room
+    user = socket.assigns[:current_user]
+
+    with {song_id, ""} <- Integer.parse(to_string(id)),
+         {:ok, song} <- Catalog.get_song_for_user(user, song_id, except_room_id: room.id),
+         {:ok, copy} <- Catalog.copy_song_to_room(song, room),
+         {:ok, _entry} <-
+           Queue.enqueue(room, %{
+             singer_name: socket.assigns.display_name,
+             song_title: copy.title,
+             song_id: copy.id,
+             user_id: current_user_id(socket)
+           }) do
+      _ = Catalog.maybe_start_isolation(copy)
+      {:noreply, socket}
+    else
+      :error -> {:noreply, put_flash(socket, :error, Auth.error_text(:not_found))}
+      {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
+    end
+  end
+
   defp host_queue_action(socket, id, fun) do
     Auth.with_host(socket, fn socket ->
       with {:ok, entry} <- Auth.fetch_room_entry(socket, id),
@@ -274,8 +297,20 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
   defp split_stored({path, hash}) when is_binary(path), do: {path, hash}
   defp split_stored(other), do: {other, nil}
 
+  defp current_user_id(socket) do
+    case socket.assigns[:current_user] do
+      %{id: id} -> id
+      _ -> nil
+    end
+  end
+
   defp can_attach_audio?(socket, entry) do
-    HTML.can_attach_audio?(socket.assigns.host?, socket.assigns.display_name, entry)
+    HTML.can_attach_audio?(
+      socket.assigns.host?,
+      socket.assigns.display_name,
+      entry,
+      socket.assigns[:current_user]
+    )
   end
 
   defp cancel_entries(socket, name) do

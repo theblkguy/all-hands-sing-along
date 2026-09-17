@@ -19,6 +19,7 @@ defmodule AllHandsSingAlong.Queue.Entry do
 
     belongs_to :room, AllHandsSingAlong.Rooms.Room
     belongs_to :song, AllHandsSingAlong.Catalog.Song
+    belongs_to :user, AllHandsSingAlong.Accounts.User
 
     timestamps(type: :utc_datetime)
   end
@@ -26,13 +27,14 @@ defmodule AllHandsSingAlong.Queue.Entry do
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(entry, attrs) do
     entry
-    |> cast(attrs, [:room_id, :song_id, :singer_name, :song_title, :status, :position])
+    |> cast(attrs, [:room_id, :song_id, :user_id, :singer_name, :song_title, :status, :position])
     |> validate_required([:room_id, :singer_name, :song_title, :status, :position])
     |> validate_length(:singer_name, min: 1, max: 80)
     |> validate_length(:song_title, min: 1, max: 200)
     |> validate_number(:position, greater_than: 0)
     |> foreign_key_constraint(:room_id)
     |> foreign_key_constraint(:song_id)
+    |> foreign_key_constraint(:user_id)
   end
 
   @spec status_changeset(t() | Ecto.Changeset.t(), status() | String.t()) :: Ecto.Changeset.t()

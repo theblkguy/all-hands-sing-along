@@ -12,23 +12,46 @@ defmodule AllHandsSingAlong.Rooms.SessionForm do
   end
 
   @spec host_changeset(map()) :: Ecto.Changeset.t()
-  def host_changeset(attrs) when is_map(attrs) do
-    %__MODULE__{}
-    |> cast(unwrap(attrs, "host"), [:display_name])
-    |> update_change(:display_name, &blank_to_nil/1)
-    |> validate_required([:display_name])
-    |> validate_length(:display_name, min: 1, max: 80)
+  def host_changeset(attrs, opts \\ [])
+
+  def host_changeset(attrs, opts) when is_map(attrs) do
+    signed_in? = Keyword.get(opts, :signed_in, false)
+
+    changeset =
+      %__MODULE__{}
+      |> cast(unwrap(attrs, "host"), [:display_name])
+      |> update_change(:display_name, &blank_to_nil/1)
+
+    if signed_in? do
+      changeset
+    else
+      changeset
+      |> validate_required([:display_name])
+      |> validate_length(:display_name, min: 1, max: 80)
+    end
   end
 
   @spec join_changeset(map()) :: Ecto.Changeset.t()
-  def join_changeset(attrs) when is_map(attrs) do
-    %__MODULE__{}
-    |> cast(unwrap(attrs, "join"), [:display_name, :code])
-    |> update_change(:display_name, &blank_to_nil/1)
-    |> update_change(:code, &blank_to_nil/1)
-    |> validate_required([:display_name, :code])
-    |> validate_length(:display_name, min: 1, max: 80)
-    |> validate_length(:code, min: 4, max: 8)
+  def join_changeset(attrs, opts \\ [])
+
+  def join_changeset(attrs, opts) when is_map(attrs) do
+    signed_in? = Keyword.get(opts, :signed_in, false)
+
+    changeset =
+      %__MODULE__{}
+      |> cast(unwrap(attrs, "join"), [:display_name, :code])
+      |> update_change(:display_name, &blank_to_nil/1)
+      |> update_change(:code, &blank_to_nil/1)
+      |> validate_required([:code])
+      |> validate_length(:code, min: 4, max: 8)
+
+    if signed_in? do
+      changeset
+    else
+      changeset
+      |> validate_required([:display_name])
+      |> validate_length(:display_name, min: 1, max: 80)
+    end
   end
 
   defp unwrap(attrs, "host"), do: Map.get(attrs, "host") || Map.get(attrs, :host) || attrs

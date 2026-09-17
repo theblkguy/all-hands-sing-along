@@ -5,31 +5,44 @@ defmodule AllHandsSingAlongWeb.SessionController do
   """
   use AllHandsSingAlongWeb, :controller
 
+  alias AllHandsSingAlong.Accounts.User
   alias AllHandsSingAlong.Rooms
   alias AllHandsSingAlong.Rooms.SessionForm
 
   @spec create_host(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def create_host(conn, params) do
-    changeset = SessionForm.host_changeset(params)
+    signed_in? = signed_in?(conn)
+    changeset = SessionForm.host_changeset(params, signed_in: signed_in?)
 
     case Ecto.Changeset.apply_action(changeset, :insert) do
-      {:ok, %{display_name: name}} ->
-        case Rooms.create_room(conn.assigns[:current_user]) do
-          {:ok, room} ->
+      {:ok, fields} ->
+        case room_display_name(conn, fields) do
+          nil ->
             conn
-            |> put_guest_session(name)
-            |> put_session(:host_tokens, Map.put(host_tokens(conn), room.code, room.host_token))
-            |> redirect(to: ~p"/rooms/#{room.code}")
-
-          {:error, :code_collision} ->
-            conn
-            |> put_flash(:error, "Couldn't create a room. Try again.")
+            |> put_flash(:error, "Pick a username to continue.")
             |> redirect(to: ~p"/")
 
-          {:error, _changeset} ->
-            conn
-            |> put_flash(:error, "Couldn't create a room. Try again.")
-            |> redirect(to: ~p"/")
+          name ->
+            case Rooms.create_room(conn.assigns[:current_user]) do
+              {:ok, room} ->
+                conn
+                |> put_guest_session(name)
+                |> put_session(
+                  :host_tokens,
+                  Map.put(host_tokens(conn), room.code, room.host_token)
+                )
+                |> redirect(to: ~p"/rooms/#{room.code}")
+
+              {:error, :code_collision} ->
+                conn
+                |> put_flash(:error, "Couldn't create a room. Try again.")
+                |> redirect(to: ~p"/")
+
+              {:error, _changeset} ->
+                conn
+                |> put_flash(:error, "Couldn't create a room. Try again.")
+                |> redirect(to: ~p"/")
+            end
         end
 
       {:error, changeset} ->
@@ -41,20 +54,31 @@ defmodule AllHandsSingAlongWeb.SessionController do
 
   @spec join(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def join(conn, params) do
-    changeset = SessionForm.join_changeset(params)
+    signed_in? = signed_in?(conn)
+    changeset = SessionForm.join_changeset(params, signed_in: signed_in?)
 
     case Ecto.Changeset.apply_action(changeset, :insert) do
-      {:ok, %{display_name: name, code: code}} ->
-        case Rooms.get_room_by_code(code) do
-          {:ok, room} ->
+      {:ok, fields} ->
+        case room_display_name(conn, fields) do
+          nil ->
             conn
-            |> put_guest_session(name)
-            |> redirect(to: ~p"/rooms/#{room.code}")
-
-          {:error, :not_found} ->
-            conn
-            |> put_flash(:error, "Room not found")
+            |> put_flash(:error, "Pick a username to continue.")
             |> redirect(to: ~p"/")
+
+          name ->
+            case Rooms.get_room_by_code(fields.code) do
+              {:ok, room} ->
+                _ = Rooms.record_membership(room, conn.assigns[:current_user])
+
+                conn
+                |> put_guest_session(name)
+                |> redirect(to: ~p"/rooms/#{room.code}")
+
+              {:error, :not_found} ->
+                conn
+                |> put_flash(:error, "Room not found")
+                |> redirect(to: ~p"/")
+            end
         end
 
       {:error, changeset} ->
@@ -76,7 +100,8 @@ defmodule AllHandsSingAlongWeb.SessionController do
   def claim_host(conn, %{"code" => code, "token" => token}) do
     with {:ok, room} <- Rooms.get_room_by_code(code),
          :ok <- Rooms.authorize_host(room, token) do
-      name = get_session(conn, :display_name) || "Host"
+      name = room_display_name(conn, %{display_name: get_session(conn, :display_name)}) || "Host"
+      _ = Rooms.record_membership(room, conn.assigns[:current_user])
 
       conn
       |> put_guest_session(name)
@@ -88,6 +113,15 @@ defmodule AllHandsSingAlongWeb.SessionController do
         conn
         |> put_flash(:error, "That host link isn't valid.")
         |> redirect(to: ~p"/")
+    end
+  end
+
+  defp signed_in?(conn), do: match?(%User{}, conn.assigns[:current_user])
+
+  defp room_display_name(conn, fields) do
+    case User.display_name(conn.assigns[:current_user]) do
+      nil -> Map.get(fields, :display_name)
+      name -> name
     end
   end
 

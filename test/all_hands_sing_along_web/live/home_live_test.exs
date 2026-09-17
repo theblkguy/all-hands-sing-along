@@ -62,4 +62,15 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     assert redirected_to(conn) == ~p"/"
     assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "display_name"
   end
+
+  test "past rooms lists rooms the signed-in user was in", %{conn: conn} do
+    user = AllHandsSingAlong.Fixtures.user_fixture(username: "ada")
+    {:ok, room} = Rooms.create_room(user)
+
+    conn = init_test_session(conn, %{"user_id" => user.id, "display_name" => "ada"})
+    {:ok, view, _html} = live(conn, ~p"/")
+    assert has_element?(view, "#past-rooms")
+    assert has_element?(view, "#rejoin-#{room.code}")
+    refute has_element?(view, "#create-room-form input[name='host[display_name]']")
+  end
 end

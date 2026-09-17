@@ -4,12 +4,14 @@ defmodule AllHandsSingAlong.Rooms do
   Rooms, host authorization, and playback commands.
   """
   require Logger
+  import Ecto.Query
 
   alias AllHandsSingAlong.Accounts.User
   alias AllHandsSingAlong.Catalog
   alias AllHandsSingAlong.Queue
   alias AllHandsSingAlong.Queue.Entry
   alias AllHandsSingAlong.Repo
+  alias AllHandsSingAlong.Rooms.Member
   alias AllHandsSingAlong.Rooms.Playback
   alias AllHandsSingAlong.Rooms.Room
   alias AllHandsSingAlong.Rooms.Sync
@@ -20,8 +22,36 @@ defmodule AllHandsSingAlong.Rooms do
   @spec create_room(User.t() | nil) ::
           {:ok, Room.t()} | {:error, :code_collision} | {:error, Ecto.Changeset.t()}
   def create_room(host_user \\ nil)
-  def create_room(%User{id: id}), do: insert_room(5, id)
+
+  def create_room(%User{} = user) do
+    with {:ok, room} <- insert_room(5, user.id) do
+      :ok = record_membership(room, user)
+      {:ok, room}
+    end
+  end
+
   def create_room(nil), do: insert_room(5, nil)
+
+  @spec record_membership(Room.t(), User.t() | nil) :: :ok
+  def record_membership(%Room{}, nil), do: :ok
+
+  def record_membership(%Room{} = room, %User{id: user_id}) do
+    %Member{}
+    |> Member.changeset(%{room_id: room.id, user_id: user_id})
+    |> Repo.insert(on_conflict: :nothing, conflict_target: [:user_id, :room_id])
+
+    :ok
+  end
+
+  @spec list_rooms_for_user(User.t()) :: [Room.t()]
+  def list_rooms_for_user(%User{id: user_id}) do
+    Room
+    |> join(:inner, [r], m in Member, on: m.room_id == r.id and m.user_id == ^user_id)
+    |> order_by([r, m], desc: m.inserted_at)
+    |> Repo.all()
+  end
+
+  def list_rooms_for_user(_), do: []
 
   @doc """
   The signed-in owner of a room is host from any browser, no cookie or link

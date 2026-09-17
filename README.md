@@ -21,13 +21,13 @@ This guide is for macOS. The app uses SQLite — you do not need Postgres.
 
 ## Use the live site
 
-Guests: open [all-hands-sing-along.fly.dev](https://all-hands-sing-along.fly.dev), enter your name and the room code, click **Join**. That is the whole setup.
+Guests: open [all-hands-sing-along.fly.dev](https://all-hands-sing-along.fly.dev), sign in, enter the room code, click **Join**. That is the whole setup.
 
-Hosts: under **Host a room**, enter your name and click **Create room**. Share the room code. When a song is **Ready**, hit **Play**.
+Hosts: under **Host a room**, click **Create room**. Share the room code. When a song is **Ready**, hit **Play**.
 
 ### Sign in
 
-The live site asks for your Google account (restricted to the company domain). Your name comes from your profile; you can still change it when you create or join a room. Nothing else to remember.
+The live site asks for your Google account (restricted to the company domain). After the first sign-in, pick a username — that's what the room shows. You can change it later on the home page.
 
 ### Keep your host controls
 

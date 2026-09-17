@@ -649,6 +649,34 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     refute render(guest_view) =~ room.host_token
   end
 
+  test "signed-in singer can queue a song from a room they were in", %{conn: conn} do
+    user = Fixtures.user_fixture(username: "sam")
+    {:ok, old_room} = AllHandsSingAlong.Rooms.create_room(user)
+    song = Fixtures.song_fixture(old_room, %{title: "Yesterday", artist: "The Beatles"})
+    room = Fixtures.room_fixture()
+
+    conn =
+      init_test_session(conn, %{
+        "user_id" => user.id,
+        "display_name" => "sam",
+        "guest_id" => "user-#{user.id}"
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/rooms/#{room.code}")
+    assert has_element?(view, "#reuse-songs")
+    assert has_element?(view, "#reuse-song-#{song.id}")
+
+    view |> element("#reuse-song-btn-#{song.id}") |> render_click()
+    html = render(view)
+    assert html =~ "Yesterday"
+    assert html =~ "sam"
+
+    [entry] = Queue.list_entries(room.id)
+    assert entry.user_id == user.id
+    assert entry.song_title == "Yesterday"
+    assert entry.song_id != song.id
+  end
+
   defp host_conn(conn, room) do
     init_test_session(conn, %{
       "display_name" => "Ada",

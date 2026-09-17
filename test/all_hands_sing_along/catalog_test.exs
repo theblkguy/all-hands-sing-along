@@ -132,4 +132,67 @@ defmodule AllHandsSingAlong.CatalogTest do
   test "get_song/1 returns not_found" do
     assert {:error, :not_found} = Catalog.get_song(-1)
   end
+
+  test "list_songs_for_user/2 is membership-only and dedupes by hash" do
+    user = Fixtures.user_fixture()
+    other = Fixtures.user_fixture()
+    {:ok, mine} = AllHandsSingAlong.Rooms.create_room(user)
+    {:ok, theirs} = AllHandsSingAlong.Rooms.create_room(other)
+    {:ok, later} = AllHandsSingAlong.Rooms.create_room(user)
+
+    hash = String.duplicate("a", 64)
+    _first = Fixtures.song_fixture(mine, %{title: "One", content_hash: hash})
+    _dup = Fixtures.song_fixture(mine, %{title: "One copy", content_hash: hash})
+    hidden = Fixtures.song_fixture(theirs, %{title: "Secret"})
+    current = Fixtures.song_fixture(later, %{title: "Tonight"})
+
+    songs = Catalog.list_songs_for_user(user)
+    titles = Enum.map(songs, & &1.title)
+    assert "One" in titles or "One copy" in titles
+    assert length(Enum.filter(songs, &(&1.content_hash == hash))) == 1
+    refute hidden.id in Enum.map(songs, & &1.id)
+
+    without_tonight = Catalog.list_songs_for_user(user, except_room_id: later.id)
+    refute current.id in Enum.map(without_tonight, & &1.id)
+  end
+
+  test "copy_song_to_room/2 copies paths and does not copy in-progress stems" do
+    room = Fixtures.room_fixture()
+    other = Fixtures.room_fixture()
+
+    song =
+      Fixtures.song_fixture(room, %{
+        title: "Levitating",
+        artist: "Dua Lipa",
+        stem_status: :running,
+        stem_progress: 40,
+        stem_error: "nope"
+      })
+
+    assert {:ok, copy} = Catalog.copy_song_to_room(song, other)
+    assert copy.room_id == other.id
+    assert copy.id != song.id
+    assert copy.title == "Levitating"
+    assert copy.original_path == song.original_path
+    assert copy.instrumental_path == song.instrumental_path
+    assert copy.lrc_text == song.lrc_text
+    assert copy.stem_status == :ok
+    assert copy.stem_progress == 0
+    assert copy.stem_error == nil
+  end
+
+  test "get_song_for_user/3 hides songs from rooms the user was not in" do
+    user = Fixtures.user_fixture()
+    {:ok, mine} = AllHandsSingAlong.Rooms.create_room(user)
+    other = Fixtures.room_fixture()
+    mine_song = Fixtures.song_fixture(mine)
+    other_song = Fixtures.song_fixture(other)
+
+    assert {:ok, found} = Catalog.get_song_for_user(user, mine_song.id)
+    assert found.id == mine_song.id
+    assert {:error, :not_found} = Catalog.get_song_for_user(user, other_song.id)
+
+    assert {:error, :not_found} =
+             Catalog.get_song_for_user(user, mine_song.id, except_room_id: mine.id)
+  end
 end

@@ -133,4 +133,22 @@ defmodule AllHandsSingAlong.RoomsTest do
     {:ok, now} = AllHandsSingAlong.Queue.get_entry(entry.id)
     assert now.status == :now_singing
   end
+
+  test "create_room/1 records host membership" do
+    user = Fixtures.user_fixture()
+    {:ok, room} = Rooms.create_room(user)
+    assert room.host_user_id == user.id
+    assert Enum.map(Rooms.list_rooms_for_user(user), & &1.id) == [room.id]
+  end
+
+  test "record_membership/2 is idempotent and guest-aware" do
+    host = Fixtures.user_fixture()
+    guest = Fixtures.user_fixture()
+    {:ok, room} = Rooms.create_room(host)
+
+    assert :ok = Rooms.record_membership(room, guest)
+    assert :ok = Rooms.record_membership(room, guest)
+    assert Enum.map(Rooms.list_rooms_for_user(guest), & &1.id) == [room.id]
+    assert :ok = Rooms.record_membership(room, nil)
+  end
 end

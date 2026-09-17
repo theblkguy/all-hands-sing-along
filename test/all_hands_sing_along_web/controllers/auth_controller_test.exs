@@ -71,7 +71,7 @@ defmodule AllHandsSingAlongWeb.AuthControllerTest do
     assert user.email == "ada@acme.com"
     assert user.name == "Ada Lovelace"
     assert get_session(conn, :user_id) == user.id
-    assert get_session(conn, :display_name) == "Ada Lovelace"
+    assert get_session(conn, :display_name) == nil
     assert get_session(conn, :google_oauth_state) == nil
   end
 
@@ -139,14 +139,17 @@ defmodule AllHandsSingAlongWeb.AuthControllerTest do
     assert get_session(conn, :user_return_to) == "/rooms/#{room.code}"
   end
 
-  test "after sign-in the visitor lands back on the room they wanted", %{conn: conn} do
+  test "after sign-in a visitor without a username is sent home", %{conn: conn} do
     {:ok, room} = Rooms.create_room()
     conn = get(conn, ~p"/rooms/#{room.code}")
     conn = conn |> recycle() |> sign_in_via_google(@claims)
-    assert redirected_to(conn) == ~p"/rooms/#{room.code}"
+    assert redirected_to(conn) == ~p"/"
+    assert get_session(conn, :user_return_to) == "/rooms/#{room.code}"
   end
 
-  test "the home page shows Sign in when signed out and the forms when signed in", %{conn: conn} do
+  test "the home page shows Sign in when signed out and a username form when signed in", %{
+    conn: conn
+  } do
     {:ok, view, _html} = live(conn, ~p"/")
     assert has_element?(view, "#sign-in-google")
     refute has_element?(view, "#create-room-form")
@@ -155,43 +158,84 @@ defmodule AllHandsSingAlongWeb.AuthControllerTest do
     conn = init_test_session(conn, %{"user_id" => user.id})
     {:ok, view, html} = live(conn, ~p"/")
     refute has_element?(view, "#sign-in-google")
-    assert has_element?(view, "#create-room-form")
+    refute has_element?(view, "#create-room-form")
+    assert has_element?(view, "#username-form")
     assert has_element?(view, "#user-chip")
-    assert html =~ "Ada Lovelace"
+    assert html =~ "Ada"
+  end
+
+  test "saving a username unlocks host and join", %{conn: conn} do
+    {:ok, user} = Accounts.upsert_from_google(@claims)
+    conn = init_test_session(conn, %{"user_id" => user.id})
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    html =
+      view
+      |> form("#username-form", %{"user" => %{"username" => "ada"}})
+      |> render_submit()
+
+    assert has_element?(view, "#create-room-form")
+    refute has_element?(view, "#create-room-form input[name='host[display_name]']")
+    assert html =~ "ada"
+  end
+
+  test "saving a username returns the visitor to the room they wanted", %{conn: conn} do
+    {:ok, room} = Rooms.create_room()
+    conn = get(conn, ~p"/rooms/#{room.code}")
+    conn = conn |> recycle() |> sign_in_via_google(@claims)
+    assert redirected_to(conn) == ~p"/"
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    {:ok, conn2} =
+      view
+      |> form("#username-form", %{"user" => %{"username" => "ada"}})
+      |> render_submit()
+      |> follow_redirect(conn, ~p"/rooms/#{room.code}")
+
+    {:ok, room_view, html} = live(conn2, ~p"/rooms/#{room.code}")
+    assert html =~ "ada"
+    assert has_element?(room_view, "#add-queue-form")
   end
 
   test "the room owner is host from any browser, no cookie token needed", %{conn: conn} do
     {:ok, user} = Accounts.upsert_from_google(@claims)
+    {:ok, user} = Accounts.update_username(user, %{username: "ada"})
     {:ok, room} = Rooms.create_room(user)
     assert room.host_user_id == user.id
 
-    conn = init_test_session(conn, %{"user_id" => user.id, "display_name" => "Ada Lovelace"})
+    conn = init_test_session(conn, %{"user_id" => user.id, "display_name" => "ada"})
     {:ok, view, _html} = live(conn, ~p"/rooms/#{room.code}")
     assert has_element?(view, "#host-link-panel")
 
     {:ok, other} =
       Accounts.upsert_from_google(%{@claims | "sub" => "google-2", "email" => "b@acme.com"})
 
+    {:ok, other} = Accounts.update_username(other, %{username: "bea"})
+
     other_conn =
       conn
       |> recycle()
-      |> init_test_session(%{"user_id" => other.id, "display_name" => "Bea"})
+      |> init_test_session(%{"user_id" => other.id, "display_name" => "bea"})
 
-    {:ok, other_view, _html} = live(other_conn, ~p"/rooms/#{room.code}")
+    {:ok, other_view, html} = live(other_conn, ~p"/rooms/#{room.code}")
     refute has_element?(other_view, "#host-link-panel")
+    assert html =~ "bea"
   end
 
   test "POST /session/host attaches the room to the signed-in user", %{conn: conn} do
     {:ok, user} = Accounts.upsert_from_google(@claims)
+    {:ok, user} = Accounts.update_username(user, %{username: "ada"})
 
     conn =
       conn
       |> init_test_session(%{"user_id" => user.id})
-      |> post(~p"/session/host", %{"host" => %{"display_name" => "Ada"}})
+      |> post(~p"/session/host", %{})
 
     code = conn |> redirected_to() |> String.split("/") |> List.last()
     {:ok, room} = Rooms.get_room_by_code(code)
     assert room.host_user_id == user.id
     assert get_session(conn, :guest_id) == "user-#{user.id}"
+    assert get_session(conn, :display_name) == "ada"
   end
 end
