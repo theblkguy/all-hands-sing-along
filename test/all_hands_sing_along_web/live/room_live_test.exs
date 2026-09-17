@@ -368,7 +368,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
         original_path: AllHandsSingAlong.Catalog.fixture_path(),
         instrumental_path: nil,
         stem_status: :failed,
-        stem_error: "Can't strip vocals yet. Run setup on this Mac."
+        stem_error: "Vocal removal isn't set up yet. The host can use Play original."
       })
 
     entry =
@@ -376,7 +376,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     assert has_element?(view, "#stem-failed-#{entry.id}")
-    assert render(view) =~ "strip vocals yet. Run setup on this Mac."
+    assert render(view) =~ "set up yet. The host can use Play original."
     assert has_element?(view, "#retry-stems-#{entry.id}")
 
     view |> element("#retry-stems-#{entry.id}") |> render_click()
@@ -647,6 +647,34 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
     {:ok, guest_view, _html} = live(guest_conn, ~p"/rooms/#{room.code}")
     refute has_element?(guest_view, "#stem-worker-hint")
     refute render(guest_view) =~ room.host_token
+  end
+
+  test "signed-in singer can queue a song from a room they were in", %{conn: conn} do
+    user = Fixtures.user_fixture(username: "sam")
+    {:ok, old_room} = AllHandsSingAlong.Rooms.create_room(user)
+    song = Fixtures.song_fixture(old_room, %{title: "Yesterday", artist: "The Beatles"})
+    room = Fixtures.room_fixture()
+
+    conn =
+      init_test_session(conn, %{
+        "user_id" => user.id,
+        "display_name" => "sam",
+        "guest_id" => "user-#{user.id}"
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/rooms/#{room.code}")
+    assert has_element?(view, "#reuse-songs")
+    assert has_element?(view, "#reuse-song-#{song.id}")
+
+    view |> element("#reuse-song-btn-#{song.id}") |> render_click()
+    html = render(view)
+    assert html =~ "Yesterday"
+    assert html =~ "sam"
+
+    [entry] = Queue.list_entries(room.id)
+    assert entry.user_id == user.id
+    assert entry.song_title == "Yesterday"
+    assert entry.song_id != song.id
   end
 
   defp host_conn(conn, room) do

@@ -30,7 +30,7 @@ defmodule AllHandsSingAlong.Catalog.Uploads do
   def max_audio_files_per_room, do: @max_audio_files_per_room
 
   @spec adapter() :: module()
-  def adapter do
+  defp adapter do
     config()[:adapter] || Local
   end
 
@@ -41,7 +41,7 @@ defmodule AllHandsSingAlong.Catalog.Uploads do
   def ensure_dir!, do: adapter().ensure_dir!()
 
   @spec audio_ext?(String.t()) :: boolean()
-  def audio_ext?(ext) when is_binary(ext) do
+  defp audio_ext?(ext) when is_binary(ext) do
     MapSet.member?(@audio_exts, String.downcase(ext))
   end
 

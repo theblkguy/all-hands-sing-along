@@ -23,6 +23,7 @@ defmodule AllHandsSingAlongWeb.Router do
 
   pipeline :require_user do
     plug :require_authenticated_user
+    plug :require_username
   end
 
   scope "/", AllHandsSingAlongWeb do

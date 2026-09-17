@@ -85,7 +85,7 @@ defmodule AllHandsSingAlongWeb.Layouts do
         referrerpolicy="no-referrer"
         class="size-7 rounded-full border border-white/15"
       />
-      <span class="hidden sm:inline">{@user.name}</span>
+      <span class="hidden sm:inline">{AllHandsSingAlong.Accounts.User.short_name(@user)}</span>
       <.link
         href={~p"/auth/logout"}
         method="delete"

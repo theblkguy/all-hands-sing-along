@@ -5,11 +5,13 @@ defmodule AllHandsSingAlong.Catalog do
   """
   import Ecto.Query
 
+  alias AllHandsSingAlong.Accounts.User
   alias AllHandsSingAlong.Catalog.Lyrics
   alias AllHandsSingAlong.Catalog.Song
   alias AllHandsSingAlong.Catalog.StemSeparator
   alias AllHandsSingAlong.Catalog.Uploads
   alias AllHandsSingAlong.Repo
+  alias AllHandsSingAlong.Rooms.Member
   alias AllHandsSingAlong.Rooms.Room
 
   @fixture_path "/audio/fixture.wav"
@@ -24,7 +26,7 @@ defmodule AllHandsSingAlong.Catalog do
   @spec fixture_lrc() :: String.t()
   def fixture_lrc do
     """
-    [00:00.00]Headphones on — Zoom is for faces
+    [00:00.00]Headphones on — the video call is for faces
     [00:02.00]This is a demo backing track
     [00:05.00]Add a song to the queue to sing for real
     """
@@ -39,6 +41,81 @@ defmodule AllHandsSingAlong.Catalog do
   end
 
   def get_song(_), do: {:error, :not_found}
+
+  @spec list_songs_for_user(User.t() | nil, keyword()) :: [Song.t()]
+  def list_songs_for_user(user, opts \\ [])
+
+  def list_songs_for_user(%User{id: user_id}, opts) do
+    except_room_id = Keyword.get(opts, :except_room_id)
+
+    Song
+    |> join(:inner, [s], m in Member, on: m.room_id == s.room_id and m.user_id == ^user_id)
+    |> then(fn query ->
+      if is_integer(except_room_id) do
+        where(query, [s], s.room_id != ^except_room_id)
+      else
+        query
+      end
+    end)
+    |> order_by([s], desc: s.inserted_at)
+    |> Repo.all()
+    |> Enum.uniq_by(&song_dedupe_key/1)
+  end
+
+  def list_songs_for_user(_, _), do: []
+
+  @spec get_song_for_user(User.t() | nil, integer() | term(), keyword()) ::
+          {:ok, Song.t()} | {:error, :not_found}
+  def get_song_for_user(user, song_id, opts \\ [])
+
+  def get_song_for_user(%User{id: user_id}, song_id, opts) when is_integer(song_id) do
+    except_room_id = Keyword.get(opts, :except_room_id)
+
+    query =
+      Song
+      |> where([s], s.id == ^song_id)
+      |> join(:inner, [s], m in Member, on: m.room_id == s.room_id and m.user_id == ^user_id)
+      |> then(fn query ->
+        if is_integer(except_room_id) do
+          where(query, [s], s.room_id != ^except_room_id)
+        else
+          query
+        end
+      end)
+
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      song -> {:ok, song}
+    end
+  end
+
+  def get_song_for_user(_, _, _), do: {:error, :not_found}
+
+  @spec copy_song_to_room(Song.t(), Room.t()) :: {:ok, Song.t()} | {:error, Ecto.Changeset.t()}
+  def copy_song_to_room(%Song{} = song, %Room{} = room) do
+    stem_status = if present?(song.instrumental_path), do: :ok, else: :idle
+
+    create_song(room, %{
+      title: song.title,
+      artist: song.artist,
+      original_path: song.original_path,
+      instrumental_path: song.instrumental_path,
+      content_hash: song.content_hash,
+      lrc_text: song.lrc_text,
+      duration_ms: song.duration_ms,
+      lyric_offset_ms: song.lyric_offset_ms || 0,
+      stem_status: stem_status,
+      stem_progress: 0,
+      stem_error: nil
+    })
+  end
+
+  defp song_dedupe_key(%Song{content_hash: hash}) when is_binary(hash) and hash != "",
+    do: {:hash, hash}
+
+  defp song_dedupe_key(%Song{title: title, artist: artist}) do
+    {:meta, String.downcase(to_string(title)), String.downcase(to_string(artist))}
+  end
 
   @spec create_song(Room.t() | nil, map()) :: {:ok, Song.t()} | {:error, Ecto.Changeset.t()}
   def create_song(%Room{} = room, attrs) when is_map(attrs) do
@@ -138,11 +215,11 @@ defmodule AllHandsSingAlong.Catalog do
   def has_original?(%Song{} = song), do: present?(song.original_path)
 
   @spec original_path(Song.t() | nil) :: String.t() | nil
-  def original_path(nil), do: nil
+  defp original_path(nil), do: nil
 
-  def original_path(%Song{original_path: path}) when is_binary(path) and path != "", do: path
+  defp original_path(%Song{original_path: path}) when is_binary(path) and path != "", do: path
 
-  def original_path(%Song{}), do: nil
+  defp original_path(%Song{}), do: nil
 
   @spec clamp_lyric_offset(integer()) :: integer()
   def clamp_lyric_offset(ms) when is_integer(ms) do

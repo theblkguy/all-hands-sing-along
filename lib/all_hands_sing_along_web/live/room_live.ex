@@ -5,6 +5,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   """
   use AllHandsSingAlongWeb, :live_view
 
+  alias AllHandsSingAlong.Catalog
   alias AllHandsSingAlong.Catalog.Song
   alias AllHandsSingAlong.Catalog.Uploads
   alias AllHandsSingAlong.Queue
@@ -21,11 +22,12 @@ defmodule AllHandsSingAlongWeb.RoomLive do
   @impl true
   def mount(%{"code" => code}, session, socket) do
     socket = assign_new(socket, :current_user, fn -> nil end)
-    display_name = session["display_name"]
-    guest_id = session["guest_id"] || Ecto.UUID.generate()
-
     current_user = socket.assigns[:current_user]
-    display_name = display_name || (current_user && current_user.name)
+
+    display_name =
+      AllHandsSingAlong.Accounts.User.display_name(current_user) || session["display_name"]
+
+    guest_id = session["guest_id"] || Ecto.UUID.generate()
 
     with {:ok, room} <- Rooms.get_room_by_code(code),
          true <- is_binary(display_name) and display_name != "" do
@@ -35,6 +37,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
           Rooms.owner_token(room, current_user)
 
       host? = Rooms.host?(room, host_token)
+      _ = Rooms.record_membership(room, current_user)
 
       socket =
         socket
@@ -46,6 +49,10 @@ defmodule AllHandsSingAlongWeb.RoomLive do
         |> assign(:playback, Rooms.playback_snapshot(room))
         |> assign(:presence, [])
         |> assign(:song_form, to_form(Song.changeset(%Song{}, %{}), as: :song))
+        |> assign(
+          :reusable_songs,
+          Catalog.list_songs_for_user(current_user, except_room_id: room.id)
+        )
         |> assign(:lyric_search, nil)
         |> assign(:lyric_preview, nil)
         |> assign(:changing_lyrics_id, nil)
@@ -93,13 +100,13 @@ defmodule AllHandsSingAlongWeb.RoomLive do
       {:error, :not_found} ->
         {:ok,
          socket
-         |> put_flash(:error, "Room not found")
+         |> put_flash(:error, "Room not found.")
          |> redirect(to: ~p"/")}
 
       false ->
         {:ok,
          socket
-         |> put_flash(:error, "Enter your name to join")
+         |> put_flash(:error, "Enter your name to join.")
          |> redirect(to: ~p"/")}
     end
   end
@@ -120,7 +127,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
        |> assign(:show_worker_command?, true)
        |> assign(:host_token, Auth.host_token(socket))}
     else
-      {:noreply, put_flash(socket, :error, "Only the host can do that")}
+      {:noreply, put_flash(socket, :error, Auth.error_text(:unauthorized))}
     end
   end
 
@@ -134,7 +141,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
        |> assign(:show_host_link?, true)
        |> assign(:host_link, url(~p"/rooms/#{code}/host/#{token}"))}
     else
-      {:noreply, put_flash(socket, :error, "Only the host can do that")}
+      {:noreply, put_flash(socket, :error, Auth.error_text(:unauthorized))}
     end
   end
 
@@ -180,6 +187,9 @@ defmodule AllHandsSingAlongWeb.RoomLive do
 
   def handle_event("add_to_queue", params, socket) when is_map(params),
     do: QueueEvents.add(socket, params)
+
+  def handle_event("reuse_song", %{"id" => id}, socket),
+    do: QueueEvents.reuse(socket, id)
 
   def handle_event("move_ready", %{"id" => id, "direction" => direction}, socket),
     do: QueueEvents.move_ready(socket, id, direction)

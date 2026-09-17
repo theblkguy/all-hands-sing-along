@@ -12,7 +12,7 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     assert html =~ "Karaoke night"
     assert has_element?(view, "#how-it-works")
     assert html =~ "How it works"
-    assert html =~ "Host hits Play"
+    assert html =~ "Host starts the song"
     # Test env uses the stub adapter, so the app is not in Mac-worker mode.
     assert has_element?(view, "#host-no-setup")
     refute has_element?(view, "#host-mac-setup")
@@ -61,5 +61,16 @@ defmodule AllHandsSingAlongWeb.HomeLiveTest do
     conn = post(conn, ~p"/session/host", %{"host" => %{"display_name" => "  "}})
     assert redirected_to(conn) == ~p"/"
     assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "display_name"
+  end
+
+  test "past rooms lists rooms the signed-in user was in", %{conn: conn} do
+    user = AllHandsSingAlong.Fixtures.user_fixture(username: "ada")
+    {:ok, room} = Rooms.create_room(user)
+
+    conn = init_test_session(conn, %{"user_id" => user.id, "display_name" => "ada"})
+    {:ok, view, _html} = live(conn, ~p"/")
+    assert has_element?(view, "#past-rooms")
+    assert has_element?(view, "#rejoin-#{room.code}")
+    refute has_element?(view, "#create-room-form input[name='host[display_name]']")
   end
 end

@@ -6,9 +6,12 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
 
   alias AllHandsSingAlong.Catalog
 
-  def can_attach_audio?(host?, display_name, entry) do
-    host? or entry.singer_name == display_name
+  def can_attach_audio?(host?, display_name, entry, current_user \\ nil) do
+    host? or entry.singer_name == display_name or matching_user?(entry, current_user)
   end
+
+  defp matching_user?(%{user_id: id}, %{id: id}) when is_integer(id), do: true
+  defp matching_user?(_, _), do: false
 
   def can_preview_lyrics?(entry) do
     entry.status in [:requested, :preparing, :ready] and
@@ -45,15 +48,12 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
 
   defp headphones_banner(assigns) do
     ~H"""
-    <div
-      class="glass-panel flex items-center gap-3 rounded-full px-4 py-2 text-sm text-amber-100/80"
-      title="Headphones keep the track out of Zoom."
-    >
+    <div class="glass-panel flex items-center gap-3 rounded-full px-4 py-2 text-sm text-amber-100/80">
       <.icon name="hero-speaker-x-mark" class="size-5 shrink-0 text-amber-200" />
       <span class="sr-only">
-        Headphones keep the track out of Zoom.
+        Headphones keep the track off the video call.
       </span>
-      <span class="hidden sm:inline">Headphones keep the track out of Zoom.</span>
+      <span class="hidden sm:inline">Headphones keep the track off the video call.</span>
     </div>
     """
   end
@@ -67,7 +67,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
     <div id="stem-worker-hint" class="glass-panel rounded-2xl px-4 py-3 text-sm text-amber-100/85">
       <p class="font-medium text-amber-100">Start the worker on your Mac</p>
       <p class="mt-1 text-white/70">
-        This strips vocals for this room only. After the README setup, copy the command and run it
+        This removes vocals for this room only. After the README setup, copy the command and run it
         from the project folder. Leave that Terminal open. Guests don't need it.
       </p>
       <.button
@@ -175,7 +175,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           <.icon_button id="pause-song" icon="hero-pause" label="Pause" phx-click="pause" />
           <.icon_button id="skip-song" icon="hero-forward" label="Skip" phx-click="skip" />
         </div>
-        <p class="text-xs text-white/45">Backing track</p>
+        <p class="text-xs text-white/45">These move the song for everyone</p>
       </div>
     </div>
     """
@@ -233,7 +233,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         id="singer-muted-note"
         class="text-sm text-amber-100/70"
       >
-        Your headphones are muted on this song while you check the next one.
+        You're listening to the preview — the room still hears the current singer.
       </p>
     </div>
     """
@@ -262,7 +262,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         />
       </div>
       <p class="text-sm text-white/55">
-        This is the original, vocals on. Everyone else still hears the singer.
+        The original track, vocals included, so you can line the lyrics up before it's their turn.
       </p>
       <.lyric_stage
         id="lyric-preview"
@@ -313,7 +313,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
       >
         <h3 class="font-medium text-white">Add a song</h3>
         <p id="add-song-hint" class="text-sm leading-relaxed text-white/55">
-          We'll look up lyrics. Audio can wait.
+          Lyrics are found for you. The audio file can come later.
         </p>
         <.input field={@song_form[:title]} id="song-title" label="Song title" />
         <.input field={@song_form[:artist]} id="song-artist" label="Artist" />
@@ -333,8 +333,31 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           <.error :for={err <- all_upload_errors(@uploads.lrc)}>{upload_error_text(err)}</.error>
           <.upload_progress id="lrc-upload-progress" entries={@uploads.lrc.entries} />
         </div>
-        <.button type="submit" variant="primary">Add me to the queue</.button>
+        <.button type="submit" variant="primary">Add to queue</.button>
       </.form>
+
+      <div :if={@reusable_songs != []} id="reuse-songs" class="glass-panel space-y-3 rounded-3xl p-6">
+        <h3 class="font-medium text-white">Songs from your past rooms</h3>
+        <ul class="space-y-2">
+          <li
+            :for={song <- @reusable_songs}
+            id={"reuse-song-#{song.id}"}
+            class="flex flex-wrap items-center justify-between gap-2"
+          >
+            <span class="text-sm text-white/80">
+              {Catalog.format_title(song.title, song.artist)}
+            </span>
+            <.button
+              id={"reuse-song-btn-#{song.id}"}
+              type="button"
+              phx-click="reuse_song"
+              phx-value-id={song.id}
+            >
+              Add
+            </.button>
+          </li>
+        </ul>
+      </div>
 
       <ul id="queue" phx-update="stream" class="space-y-2">
         <li
@@ -349,6 +372,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           entry={entry}
           host?={@host?}
           display_name={@display_name}
+          current_user={@current_user}
           lyric_search={@lyric_search}
           changing_lyrics_id={@changing_lyrics_id}
           attaching_audio_id={@attaching_audio_id}
@@ -364,6 +388,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
   attr :entry, :map, required: true
   attr :host?, :boolean, required: true
   attr :display_name, :string, required: true
+  attr :current_user, :any, default: nil
   attr :lyric_search, :any, default: nil
   attr :changing_lyrics_id, :any, default: nil
   attr :attaching_audio_id, :any, default: nil
@@ -385,7 +410,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
               id={"no-audio-#{@entry.id}"}
               class="text-sm text-warning"
             >
-              No audio yet. Upload a file.
+              No audio yet — upload a file to get started.
             </p>
             <p
               :if={@entry.status == :preparing and not Catalog.has_lyrics?(@entry.song)}
@@ -413,7 +438,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
               id={"stem-failed-#{@entry.id}"}
               class="text-sm text-warning"
             >
-              {@entry.song.stem_error || "Couldn't strip the vocals."}
+              {@entry.song.stem_error || "Couldn't remove the vocals."}
             </p>
           </div>
           <span class="rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] uppercase tracking-wider text-white/60">
@@ -446,7 +471,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
         </div>
         <div
           :if={
-            can_attach_audio?(@host?, @display_name, @entry) and
+            can_attach_audio?(@host?, @display_name, @entry, @current_user) and
               Catalog.missing_audio?(@entry.song) and
               @entry.status in [:requested, :preparing]
           }
@@ -508,7 +533,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.HTML do
           :if={@host? and can_preview_lyrics?(@entry)}
           id={"tune-lyrics-#{@entry.id}"}
           icon="hero-adjustments-horizontal"
-          label="Line up lyrics"
+          label="Adjust lyric timing"
           phx-click="tune_lyrics"
           phx-value-id={@entry.id}
         />
