@@ -76,7 +76,7 @@ defmodule AllHandsSingAlongWeb.SessionController do
 
               {:error, :not_found} ->
                 conn
-                |> put_flash(:error, "Room not found")
+                |> put_flash(:error, "Room not found.")
                 |> redirect(to: ~p"/")
             end
         end

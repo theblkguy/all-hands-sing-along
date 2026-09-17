@@ -62,7 +62,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
 
         {:noreply, restream_queue(socket)}
       else
-        false -> {:noreply, put_flash(socket, :error, "Only the host can do that")}
+        false -> {:noreply, put_flash(socket, :error, Auth.error_text(:unauthorized))}
         {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
       end
     end)
@@ -120,9 +120,9 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
       {:noreply,
        socket
        |> finish_lyric_edit(entry)
-       |> put_flash(:info, "Lyrics saved")}
+       |> put_flash(:info, "Lyrics saved.")}
     else
-      nil -> {:noreply, put_flash(socket, :error, "Add the song to the queue first")}
+      nil -> {:noreply, put_flash(socket, :error, "Add the song to the queue first.")}
       {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
     end
   end
@@ -136,7 +136,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
       {:noreply,
        socket
        |> finish_lyric_edit(entry)
-       |> put_flash(:info, "Lyrics saved")}
+       |> put_flash(:info, "Lyrics saved.")}
     else
       {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
     end
@@ -173,7 +173,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Lyrics do
 
     cond do
       is_nil(preview) ->
-        put_flash(socket, :error, "Not found")
+        put_flash(socket, :error, "Not found.")
 
       true ->
         with {:ok, song} <- Catalog.get_song(preview.song_id),

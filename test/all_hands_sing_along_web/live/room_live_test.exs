@@ -368,7 +368,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
         original_path: AllHandsSingAlong.Catalog.fixture_path(),
         instrumental_path: nil,
         stem_status: :failed,
-        stem_error: "Can't remove vocals yet. Run setup on this Mac."
+        stem_error: "Vocal removal isn't set up yet. The host can use Play original."
       })
 
     entry =
@@ -376,7 +376,7 @@ defmodule AllHandsSingAlongWeb.RoomLiveTest do
 
     {:ok, view, _html} = live(host_conn(conn, room), ~p"/rooms/#{room.code}")
     assert has_element?(view, "#stem-failed-#{entry.id}")
-    assert render(view) =~ "remove vocals yet. Run setup on this Mac."
+    assert render(view) =~ "set up yet. The host can use Play original."
     assert has_element?(view, "#retry-stems-#{entry.id}")
 
     view |> element("#retry-stems-#{entry.id}") |> render_click()

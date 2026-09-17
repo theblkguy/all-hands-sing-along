@@ -100,13 +100,13 @@ defmodule AllHandsSingAlongWeb.RoomLive do
       {:error, :not_found} ->
         {:ok,
          socket
-         |> put_flash(:error, "Room not found")
+         |> put_flash(:error, "Room not found.")
          |> redirect(to: ~p"/")}
 
       false ->
         {:ok,
          socket
-         |> put_flash(:error, "Enter your name to join")
+         |> put_flash(:error, "Enter your name to join.")
          |> redirect(to: ~p"/")}
     end
   end
@@ -127,7 +127,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
        |> assign(:show_worker_command?, true)
        |> assign(:host_token, Auth.host_token(socket))}
     else
-      {:noreply, put_flash(socket, :error, "Only the host can do that")}
+      {:noreply, put_flash(socket, :error, Auth.error_text(:unauthorized))}
     end
   end
 
@@ -141,7 +141,7 @@ defmodule AllHandsSingAlongWeb.RoomLive do
        |> assign(:show_host_link?, true)
        |> assign(:host_link, url(~p"/rooms/#{code}/host/#{token}"))}
     else
-      {:noreply, put_flash(socket, :error, "Only the host can do that")}
+      {:noreply, put_flash(socket, :error, Auth.error_text(:unauthorized))}
     end
   end
 

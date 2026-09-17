@@ -4,6 +4,8 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   One-at-a-time vocal isolation jobs. Phoenix never runs Demucs in a LiveView.
   """
   use GenServer
+
+  require Logger
   import Ecto.Query
 
   alias AllHandsSingAlong.Catalog
@@ -420,6 +422,7 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
   end
 
   defp mark_failed(song_id, reason) do
+    Logger.error("vocal removal failed for song #{song_id}: #{inspect(reason)}")
     mark_status_id(song_id, :failed, error_message(reason))
 
     case Repo.get(Song, song_id) do
@@ -457,23 +460,19 @@ defmodule AllHandsSingAlong.Catalog.StemSeparator do
     :ok
   end
 
-  defp error_message(:not_installed), do: "Can't remove vocals yet. Run setup on this Mac."
+  # Shown in the queue row to everyone in the room, so it stays free of shell
+  # commands and vendor names; mark_failed/2 logs the real reason for the host.
+  defp error_message(reason) when reason in [:not_installed, :missing_numpy, :missing_ffmpeg],
+    do: "Vocal removal isn't set up yet. The host can use Play original."
 
-  defp error_message(:missing_numpy),
-    do: "Can't remove vocals: NumPy is missing. Re-run ./script/setup."
+  defp error_message(reason) when reason in [:replicate_unauthorized, :replicate_billing],
+    do: "Vocal removal is unavailable right now. The host can use Play original."
 
-  defp error_message(:missing_ffmpeg),
-    do: "Need ffmpeg to mix a quiet guide vocal."
+  defp error_message(:missing_audio), do: "That song's audio file is missing."
 
-  defp error_message(:missing_audio), do: "The song file is missing"
+  defp error_message(:timeout),
+    do: "Vocal removal took too long. The host can retry or use Play original."
 
-  defp error_message(:replicate_unauthorized),
-    do: "Vocal removal isn't set up: the Replicate token was rejected."
-
-  defp error_message(:replicate_billing),
-    do: "Vocal removal is paused: the Replicate account needs billing."
-
-  defp error_message(:timeout), do: "Vocal removal took too long. Try again or Play original."
   defp error_message(_), do: "Couldn't remove the vocals"
 
   defp reason_to_error(_), do: :stem_failed

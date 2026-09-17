@@ -108,7 +108,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
        |> stream(:queue, Queue.list_entries(socket.assigns.room.id), reset: true)}
     else
       false ->
-        {:noreply, put_flash(socket, :error, "You can only add audio to your own song")}
+        {:noreply, put_flash(socket, :error, "You can only add audio to your own song.")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
@@ -120,10 +120,10 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
       {:ok, entry} ->
         cond do
           not can_attach_audio?(socket, entry) ->
-            {:noreply, put_flash(socket, :error, "You can only add audio to your own song")}
+            {:noreply, put_flash(socket, :error, "You can only add audio to your own song.")}
 
           not Catalog.missing_audio?(entry.song) ->
-            {:noreply, put_flash(socket, :error, "This song already has audio")}
+            {:noreply, put_flash(socket, :error, "This song already has audio.")}
 
           not Catalog.audio_slot_available?(socket.assigns.room) ->
             {:noreply, put_flash(socket, :error, Auth.error_text(:room_full))}
@@ -201,7 +201,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
         {:noreply, socket}
       else
         {:error, :not_found} ->
-          {:noreply, put_flash(socket, :error, "That song isn't in the queue")}
+          {:noreply, put_flash(socket, :error, "That song isn't in the queue.")}
 
         {:error, reason} ->
           {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
@@ -261,7 +261,7 @@ defmodule AllHandsSingAlongWeb.RoomLive.Queue do
            socket
            |> assign(:attaching_audio_id, nil)
            |> stream(:queue, Queue.list_entries(socket.assigns.room.id), reset: true)
-           |> put_flash(:info, "Audio saved")}
+           |> put_flash(:info, "Audio saved.")}
         else
           {:error, reason} -> {:noreply, put_flash(socket, :error, Auth.error_text(reason))}
         end
